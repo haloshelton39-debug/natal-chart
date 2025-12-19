@@ -90,14 +90,15 @@ JavaScript модули:
    • Бесплатно: Да
    • Регистрация: Не требуется (есть лимит для анонимных)
 
-2. Timezone API (https://api.weatherapi.com)
-   • Адрес: api.weatherapi.com/v1/timezone.json
+2. Timezone (GeoNames) API (https://www.geonames.org)
+   • Адрес: secure.geonames.org/timezoneJSON
    • Использование: определение часового пояса по координатам
    • Параметры:
-     - key: API ключ (DEMO для тестирования)
-     - q: координаты широта,долгота или город
-   • Результат: IANA timezone, текущее время, смещение UTC
-   • Бесплатно: 1 млн запросов/месяц
+     - lat: широта
+     - lng: долгота
+     - username: demo (или свой)
+   • Результат: IANA timezone (`timezoneId`), смещение UTC (`gmtOffset`)
+   • Бесплатно: Да (с лимитами по username)
 
 ═══════════════════════════════════════════════════════════════════════
 
