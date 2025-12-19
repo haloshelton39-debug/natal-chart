@@ -103,11 +103,62 @@
             font-family: inherit;
         }
 
+        /* Страна: делаем шрифт темнее (для нативного выпадающего списка) */
+        #birthCountry {
+            background: rgba(255, 255, 255, 0.92);
+            color: #111;
+            border-color: rgba(0, 212, 255, 0.35);
+        }
+
+        #birthCountry:focus {
+            background: rgba(255, 255, 255, 0.98);
+        }
+
+        #birthCountry option {
+            color: #111;
+        }
+
+        /* Подсказки городов */
+        #citySuggestions {
+            background: rgba(15, 15, 26, 0.98);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            border-radius: 8px;
+        }
+
+        .city-suggestion {
+            padding: 10px 12px;
+            cursor: pointer;
+            color: var(--text);
+            border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+            transition: background 0.15s ease;
+        }
+
+        .city-suggestion:last-child {
+            border-bottom: none;
+        }
+
+        .city-suggestion:hover {
+            background: rgba(0, 212, 255, 0.08);
+        }
+
+        .city-suggestion small {
+            display: block;
+            margin-top: 4px;
+            color: var(--text-muted);
+        }
+
         input:focus, select:focus {
             outline: none;
             background: rgba(0, 212, 255, 0.1);
             border-color: var(--accent);
             box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        }
+
+        /* Перекрываем общий focus-стиль для селекта страны */
+        #birthCountry:focus {
+            background: rgba(255, 255, 255, 0.98);
+            color: #111;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.12);
         }
 
         input::placeholder {
@@ -603,6 +654,11 @@
 
                 <form id="chartForm">
                     <div class="form-group">
+                        <label for="personName">Имя</label>
+                        <input type="text" id="personName" placeholder="Например: Анна" required autocomplete="name">
+                    </div>
+
+                    <div class="form-group">
                         <label for="birthDate">Дата рождения</label>
                         <input type="date" id="birthDate" required>
                     </div>
@@ -613,12 +669,6 @@
                         <small style="color: var(--text-muted); display: block; margin-top: 8px;">
                             Если время неизвестно, оставьте 12:00
                         </small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="birthPlace">Место рождения (город)</label>
-                        <input type="text" id="birthPlace" placeholder="Например: Москва" required autocomplete="off">
-                        <div id="citySuggestions" style="max-height: 200px; overflow-y: auto; margin-top: 8px; display: none;"></div>
                     </div>
 
                     <div class="form-group">
@@ -637,6 +687,12 @@
                             <option value="CN">Китай</option>
                             <option value="JP">Япония</option>
                         </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="birthPlace">Место рождения (город)</label>
+                        <input type="text" id="birthPlace" placeholder="Например: Мытищи" required autocomplete="off">
+                        <div id="citySuggestions" style="max-height: 220px; overflow-y: auto; margin-top: 8px; display: none;"></div>
                     </div>
 
                     <div class="form-group">
@@ -669,7 +725,7 @@
             </div>
 
             <div class="chart-section" id="chartSection">
-                <h2 style="color: var(--accent); margin-bottom: 25px; font-size: 1.3em;">Космограмма</h2>
+                <h2 id="cosmogramTitle" style="color: var(--accent); margin-bottom: 25px; font-size: 1.3em;">Космограмма</h2>
                 <div class="chart-container">
                     <canvas id="natalChart" class="natal-chart-canvas"></canvas>
                 </div>
@@ -764,6 +820,10 @@
         </div>
     </div>
 
+    <!-- Внешние библиотеки для точного астрономического расчёта -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+
     <script>
         const PLANETS_EN = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
 
@@ -778,6 +838,19 @@
             uranus: "Уран",
             neptune: "Нептун",
             pluto: "Плутон"
+        };
+
+        const PLANET_SYMBOLS = {
+            sun: "☉",
+            moon: "☽",
+            mercury: "☿",
+            venus: "♀",
+            mars: "♂",
+            jupiter: "♃",
+            saturn: "♄",
+            uranus: "♅",
+            neptune: "♆",
+            pluto: "♇"
         };
 
         const ZODIAC_RU = [
@@ -796,12 +869,41 @@
             8: "Огонь", 9: "Земля", 10: "Воздух", 11: "Вода"
         };
 
+        const MODALITIES = ["Кардинальный", "Фиксированный", "Мутабельный"];
+
+        const PLANET_THEMES = {
+            sun: "ядро личности, воля, жизненная энергия",
+            moon: "эмоции, привычные реакции, потребности и чувство безопасности",
+            mercury: "мышление, речь, обучение, обмен информацией",
+            venus: "ценности, симпатии, вкус, любовь и умение выстраивать гармонию",
+            mars: "энергия действия, напор, способ добиваться своего",
+            jupiter: "рост, смысл, мировоззрение, удача через расширение",
+            saturn: "границы, ответственность, структура и жизненные уроки",
+            uranus: "свобода, резкие перемены, нестандартность",
+            neptune: "мечта, вдохновение, интуиция, размывание границ",
+            pluto: "глубинная трансформация, контроль/сила, кризисы и перерождение"
+        };
+
         let currentChart = null;
         let lastSelectedCoords = null;
+        let lastSelectedPlaceMeta = null;
 
         // Инициализация
         document.getElementById('chartForm').addEventListener('submit', handleSubmit);
         document.getElementById('birthPlace').addEventListener('input', debounce(handleCitySearch, 300));
+        document.getElementById('birthCountry').addEventListener('change', () => {
+            // При смене страны сбрасываем выбранные координаты, чтобы не было несоответствий.
+            lastSelectedCoords = null;
+            lastSelectedPlaceMeta = null;
+            document.getElementById('detectTimezoneBtn').disabled = true;
+            if (!document.getElementById('timezoneManual').checked) {
+                document.getElementById('timezone').value = '';
+                document.getElementById('timezoneInfo').innerHTML = `Часовой пояс будет определён автоматически при выборе города`;
+            }
+            // Если пользователь уже ввёл город — перезапустим поиск в рамках новой страны.
+            const city = document.getElementById('birthPlace').value.trim();
+            if (city.length >= 2) handleCitySearch({ target: { value: city } });
+        });
         document.getElementById('detectTimezoneBtn').addEventListener('click', () => {
             if (lastSelectedCoords) getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
         });
@@ -810,7 +912,7 @@
         });
 
         async function handleCitySearch(e) {
-            const query = e.target.value;
+            const query = (e.target.value || '').trim();
             if (query.length < 2) {
                 document.getElementById('citySuggestions').style.display = 'none';
                 return;
@@ -818,35 +920,72 @@
 
             try {
                 const country = document.getElementById('birthCountry').value || 'RU';
-                const response = await fetch(
-                    `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=10&username=demo`
-                );
-                const data = await response.json();
 
-                if (data.geonames && data.geonames.length > 0) {
-                    const suggestions = data.geonames.map(city => `
-                        <div style="padding: 8px; cursor: pointer; color: var(--text); border-bottom: 1px solid rgba(0,212,255,0.1);"
-                             onclick="selectCity('${city.name}', ${city.lat}, ${city.lng}, '${city.countryCode}')">
-                            ${city.name} (${city.adminName1})
-                        </div>
-                    `).join('');
+                // Важно: encodeURIComponent нужен для кириллицы и пробелов (например, "Мытищи", "New York").
+                const encoded = encodeURIComponent(query);
 
-                    document.getElementById('citySuggestions').innerHTML = suggestions;
-                    document.getElementById('citySuggestions').style.display = 'block';
-                } else {
-                    document.getElementById('citySuggestions').style.display = 'none';
+                // 1) Быстрый поиск по началу названия
+                const urlStarts = `https://secure.geonames.org/searchJSON?name_startsWith=${encoded}&country=${encodeURIComponent(country)}&featureClass=P&maxRows=12&orderby=population&username=demo`;
+                const response1 = await fetch(urlStarts);
+                const data1 = await response1.json();
+                let geonames = Array.isArray(data1?.geonames) ? data1.geonames : [];
+
+                // 2) Фолбэк для русских/альтернативных названий: общий поиск (q) часто находит "Мытищи" и похожие.
+                if (geonames.length === 0) {
+                    const urlQ = `https://secure.geonames.org/searchJSON?q=${encoded}&country=${encodeURIComponent(country)}&featureClass=P&maxRows=12&orderby=population&username=demo`;
+                    const response2 = await fetch(urlQ);
+                    const data2 = await response2.json();
+                    geonames = Array.isArray(data2?.geonames) ? data2.geonames : [];
                 }
+
+                renderCitySuggestions(geonames);
             } catch (error) {
                 console.error('Ошибка поиска города:', error);
             }
         }
 
-        function selectCity(name, lat, lng, country) {
+        function renderCitySuggestions(geonames) {
+            const wrap = document.getElementById('citySuggestions');
+            wrap.innerHTML = '';
+
+            if (!Array.isArray(geonames) || geonames.length === 0) {
+                wrap.style.display = 'none';
+                return;
+            }
+
+            const frag = document.createDocumentFragment();
+            geonames.forEach((city) => {
+                const row = document.createElement('div');
+                row.className = 'city-suggestion';
+                row.innerHTML = `
+                    <div><strong>${escapeHtml(city.name)}</strong></div>
+                    <small>${escapeHtml(city.adminName1 || '')}${city.adminName1 ? ', ' : ''}${escapeHtml(city.countryName || city.countryCode || '')}</small>
+                `;
+                row.addEventListener('click', () => selectCity(city));
+                frag.appendChild(row);
+            });
+
+            wrap.appendChild(frag);
+            wrap.style.display = 'block';
+        }
+
+        function selectCity(city) {
+            const name = city.name;
+            const lat = Number(city.lat);
+            const lng = Number(city.lng);
+            const country = city.countryCode;
+
             document.getElementById('birthPlace').value = name;
-            document.getElementById('birthCountry').value = country;
+            if (country) document.getElementById('birthCountry').value = country;
             document.getElementById('citySuggestions').style.display = 'none';
 
             lastSelectedCoords = { lat, lng };
+            lastSelectedPlaceMeta = {
+                name,
+                adminName1: city.adminName1 || '',
+                countryCode: country || '',
+                countryName: city.countryName || ''
+            };
             document.getElementById('detectTimezoneBtn').disabled = false;
 
             // Получить часовой пояс (если не включён ручной ввод)
@@ -856,6 +995,15 @@
                 document.getElementById('timezoneInfo').innerHTML =
                     `<strong>Ручной ввод включён:</strong> вы можете ввести часовой пояс, либо нажмите «Определить»`;
             }
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
         }
 
         function setTimezoneManualMode(enabled) {
@@ -926,12 +1074,29 @@
         async function handleSubmit(e) {
             e.preventDefault();
 
+            if (!window.luxon || !window.Astronomy) {
+                showError('Не удалось загрузить астрономический модуль. Проверьте интернет-соединение и перезагрузите страницу.');
+                return;
+            }
+
+            const personName = document.getElementById('personName').value.trim();
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
+            const timezone = document.getElementById('timezone').value.trim();
 
-            if (!birthDate || !birthTime || !birthPlace) {
+            if (!personName || !birthDate || !birthTime || !birthPlace) {
                 showError('Пожалуйста, заполните все поля');
+                return;
+            }
+
+            if (!timezone) {
+                showError('Пожалуйста, укажите часовой пояс (автоопределение по выбранному городу или ручной ввод).');
+                return;
+            }
+
+            if (!lastSelectedCoords) {
+                showError('Пожалуйста, выберите город из подсказок (нужны точные координаты для корректного расчёта).');
                 return;
             }
 
@@ -939,8 +1104,15 @@
             document.getElementById('errorMessage').style.display = 'none';
 
             try {
-                // Симуляция расчётов натальной карты с реальными астрологическими формулами
-                const chartData = calculateNatalChart(birthDate, birthTime, birthPlace);
+                const chartData = calculateNatalChart({
+                    personName,
+                    birthDate,
+                    birthTime,
+                    timezone,
+                    placeInput: birthPlace,
+                    placeMeta: lastSelectedPlaceMeta,
+                    coords: lastSelectedCoords
+                });
                 currentChart = chartData;
 
                 displayChart(chartData);
@@ -958,91 +1130,151 @@
             }
         }
 
-        function calculateNatalChart(dateStr, timeStr, place) {
-            const date = new Date(dateStr + 'T' + timeStr);
+        function calculateNatalChart({ personName, birthDate, birthTime, timezone, placeInput, placeMeta, coords }) {
+            const { DateTime } = luxon;
 
-            // Вычисляем юлианское число (упрощённо)
-            const jd = getJulianDay(date);
+            // Время рождения в указанной IANA TZ → UTC (учитывает DST).
+            const dtLocal = DateTime.fromISO(`${birthDate}T${birthTime}`, { zone: timezone });
+            if (!dtLocal.isValid) {
+                throw new Error('Некорректная дата/время или часовой пояс.');
+            }
+            const dtUtc = dtLocal.toUTC();
+            const utcDate = dtUtc.toJSDate();
 
-            // Вычисляем положение планет (симуляция)
+            // Положения планет: геоцентрическая эклиптическая долгота на момент рождения.
+            const bodyMap = {
+                sun: Astronomy.Body.Sun,
+                moon: Astronomy.Body.Moon,
+                mercury: Astronomy.Body.Mercury,
+                venus: Astronomy.Body.Venus,
+                mars: Astronomy.Body.Mars,
+                jupiter: Astronomy.Body.Jupiter,
+                saturn: Astronomy.Body.Saturn,
+                uranus: Astronomy.Body.Uranus,
+                neptune: Astronomy.Body.Neptune,
+                pluto: Astronomy.Body.Pluto
+            };
+
             const planets = {};
-            PLANETS_EN.forEach((planet, index) => {
-                const longitude = (jd * 0.985647 + index * 25.5 + Math.random() * 30) % 360;
-                planets[planet] = {
-                    longitude: longitude,
-                    sign: Math.floor(longitude / 30),
-                    degree: longitude % 30,
-                    latitude: (Math.random() - 0.5) * 5,
-                    speed: (Math.random() - 0.5) * 2 + (index === 0 ? 1 : 0)
+            for (const key of PLANETS_EN) {
+                const body = bodyMap[key];
+                const lon = normalize360(Astronomy.EclipticLongitude(body, utcDate));
+                const lonTomorrow = normalize360(Astronomy.EclipticLongitude(body, new Date(utcDate.getTime() + 86400000)));
+                const speed = normalize180(lonTomorrow - lon); // град/сутки
+                const sign = Math.floor(lon / 30);
+                planets[key] = {
+                    longitude: lon,
+                    sign,
+                    degree: lon % 30,
+                    speed,
+                    retrograde: speed < 0
                 };
-            });
-
-            // Асцендент (симуляция)
-            const ascendant = (jd * 360 + Math.random() * 30) % 360;
-            const ascendantSign = Math.floor(ascendant / 30);
-
-            // МС (Середина неба)
-            const mc = (ascendant + 90) % 360;
-            const mcSign = Math.floor(mc / 30);
-
-            // Дома (система Плацидуса - упрощённо)
-            const houses = [];
-            for (let i = 0; i < 12; i++) {
-                houses[i] = (ascendant + i * 30) % 360;
             }
 
-            // Аспекты
+            // Асцендент / МС (геометрически, от звёздного времени, места и наклона эклиптики).
+            const ascendant = calculateAscendant(utcDate, coords.lat, coords.lng);
+            const ascendantSign = Math.floor(ascendant / 30);
+            const mc = calculateMidheaven(utcDate, coords.lng);
+            const mcSign = Math.floor(mc / 30);
+
+            // Дома: равнодомная система от Асцендента (детерминировано и согласовано с координатами/временем).
+            // При необходимости можно заменить на Плацидус.
+            const houses = Array.from({ length: 12 }, (_, i) => normalize360(ascendant + i * 30));
+
             const aspects = calculateAspects(planets);
+            const chartRuler = getChartRulerByAscendant(ascendantSign);
 
             return {
-                date: date,
-                planets: planets,
-                ascendant: ascendant,
-                ascendantSign: ascendantSign,
-                mc: mc,
-                mcSign: mcSign,
-                houses: houses,
-                aspects: aspects
+                personName,
+                birth: {
+                    date: birthDate,
+                    time: birthTime,
+                    timezone,
+                    localISO: dtLocal.toISO(),
+                    utcISO: dtUtc.toISO()
+                },
+                location: {
+                    input: placeInput,
+                    name: placeMeta?.name || placeInput,
+                    adminName1: placeMeta?.adminName1 || '',
+                    countryCode: placeMeta?.countryCode || document.getElementById('birthCountry').value || '',
+                    lat: coords.lat,
+                    lng: coords.lng
+                },
+                planets,
+                ascendant,
+                ascendantSign,
+                mc,
+                mcSign,
+                houses,
+                aspects,
+                chartRuler
             };
         }
 
-        function getJulianDay(date) {
-            const a = Math.floor((14 - (date.getMonth() + 1)) / 12);
-            const y = date.getFullYear() + 4800 - a;
-            const m = (date.getMonth() + 1) + 12 * a - 3;
+        function normalize360(deg) {
+            const x = deg % 360;
+            return x < 0 ? x + 360 : x;
+        }
 
-            const jdn = date.getDate() + Math.floor((153 * m + 2) / 5) + 365 * y + 
-                        Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+        function normalize180(deg) {
+            let x = normalize360(deg);
+            if (x > 180) x -= 360;
+            return x;
+        }
 
-            const jd = jdn + (date.getHours() - 12) / 24 + date.getMinutes() / 1440 + 
-                       date.getSeconds() / 86400;
+        function calculateAscendant(utcDate, latDeg, lngDeg) {
+            const time = Astronomy.MakeTime(utcDate);
+            const gastHours = Astronomy.SiderealTime(time); // Greenwich apparent sidereal time (hours)
+            const tilt = Astronomy.e_tilt(time);
+            const eps = (tilt.tobl || 0) * Math.PI / 180;
+            const phi = latDeg * Math.PI / 180;
 
-            return jd;
+            const theta = (normalize360(gastHours * 15 + lngDeg)) * Math.PI / 180; // local sidereal angle
+
+            // Ascendant ecliptic longitude (approximate geometric formula).
+            const y = Math.sin(theta) * Math.cos(eps) - Math.tan(phi) * Math.sin(eps);
+            const x = Math.cos(theta);
+            const lambda = Math.atan2(y, x) * 180 / Math.PI;
+            return normalize360(lambda);
+        }
+
+        function calculateMidheaven(utcDate, lngDeg) {
+            const time = Astronomy.MakeTime(utcDate);
+            const gastHours = Astronomy.SiderealTime(time);
+            const tilt = Astronomy.e_tilt(time);
+            const eps = (tilt.tobl || 0) * Math.PI / 180;
+            const theta = (normalize360(gastHours * 15 + lngDeg)) * Math.PI / 180;
+
+            // Midheaven (MC) ecliptic longitude from local sidereal time.
+            const y = Math.sin(theta);
+            const x = Math.cos(theta) * Math.cos(eps);
+            const lambda = Math.atan2(y, x) * 180 / Math.PI;
+            return normalize360(lambda);
         }
 
         function calculateAspects(planets) {
             const aspects = [];
             const planetList = Object.entries(planets);
-            const orbs = 8;
 
             for (let i = 0; i < planetList.length; i++) {
                 for (let j = i + 1; j < planetList.length; j++) {
                     const [name1, data1] = planetList[i];
                     const [name2, data2] = planetList[j];
 
-                    const diff = Math.abs(data1.longitude - data2.longitude);
-                    const angle = diff > 180 ? 360 - diff : diff;
+                    const angle = Math.abs(normalize180(data1.longitude - data2.longitude));
 
                     const aspectTypes = [
-                        { angle: 0, name: "Соединение", symbol: "☌", type: "напряжённый" },
-                        { angle: 60, name: "Секстиль", symbol: "⬡", type: "гармоничный" },
-                        { angle: 90, name: "Квадратура", symbol: "□", type: "напряжённый" },
-                        { angle: 120, name: "Тригон", symbol: "△", type: "гармоничный" },
-                        { angle: 180, name: "Оппозиция", symbol: "☍", type: "напряжённый" }
+                        { angle: 0, name: "Соединение", symbol: "☌", type: "напряжённый", orb: 8 },
+                        { angle: 60, name: "Секстиль", symbol: "⬡", type: "гармоничный", orb: 6 },
+                        { angle: 90, name: "Квадратура", symbol: "□", type: "напряжённый", orb: 6 },
+                        { angle: 120, name: "Тригон", symbol: "△", type: "гармоничный", orb: 8 },
+                        { angle: 180, name: "Оппозиция", symbol: "☍", type: "напряжённый", orb: 8 }
                     ];
 
                     for (const asp of aspectTypes) {
-                        if (Math.abs(angle - asp.angle) < orbs) {
+                        const orb = Math.abs(angle - asp.angle);
+                        if (orb <= asp.orb) {
                             aspects.push({
                                 planet1: name1,
                                 planet2: name2,
@@ -1050,7 +1282,7 @@
                                 name: asp.name,
                                 symbol: asp.symbol,
                                 type: asp.type,
-                                orb: Math.abs(angle - asp.angle).toFixed(1)
+                                orb: orb.toFixed(1)
                             });
                             break;
                         }
@@ -1059,6 +1291,29 @@
             }
 
             return aspects;
+        }
+
+        function getChartRulerByAscendant(ascSign) {
+            // Управители знаков (включаем современный как доп. для Скорпиона/Водолея/Рыб).
+            const rulers = {
+                0: ["mars"],
+                1: ["venus"],
+                2: ["mercury"],
+                3: ["moon"],
+                4: ["sun"],
+                5: ["mercury"],
+                6: ["venus"],
+                7: ["mars", "pluto"],
+                8: ["jupiter"],
+                9: ["saturn"],
+                10: ["saturn", "uranus"],
+                11: ["jupiter", "neptune"]
+            };
+            const keys = rulers[ascSign] || [];
+            return {
+                primary: keys[0] || null,
+                secondary: keys[1] || null
+            };
         }
 
         function displayChart(chartData) {
@@ -1117,14 +1372,21 @@
             ctx.globalAlpha = 1;
 
             // Планеты
-            ctx.font = '16px Arial';
+            ctx.font = '18px Arial';
             Object.entries(chartData.planets).forEach(([name, data]) => {
                 const angle = (data.longitude - 90) * Math.PI / 180;
                 const x = centerX + Math.cos(angle) * (radius * 0.6);
                 const y = centerY + Math.sin(angle) * (radius * 0.6);
 
                 ctx.fillStyle = '#ff6b9d';
-                ctx.fillText('●', x, y);
+                ctx.fillText(PLANET_SYMBOLS[name] || '●', x, y);
+                if (data.retrograde) {
+                    ctx.font = '12px Arial';
+                    ctx.fillStyle = '#ffcc44';
+                    ctx.fillText('℞', x + 10, y - 10);
+                    ctx.font = '18px Arial';
+                    ctx.fillStyle = '#ff6b9d';
+                }
             });
 
             // Асцендент
@@ -1141,6 +1403,9 @@
         }
 
         function displayResults(chartData) {
+            const title = document.getElementById('cosmogramTitle');
+            if (title) title.textContent = `Космограмма: ${chartData.personName}`;
+
             // Планеты в знаках
             let planetsHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
@@ -1148,12 +1413,12 @@
                 const degree = data.degree.toFixed(1);
                 planetsHtml += `
                     <div class="planet-row">
-                        <div class="planet-symbol">●</div>
+                        <div class="planet-symbol">${PLANET_SYMBOLS[name] || '●'}</div>
                         <div class="planet-info">
-                            <div class="planet-name">${PLANETS_RU[name]}</div>
-                            <div class="planet-position">${sign}</div>
+                            <div class="planet-name">${PLANETS_RU[name]}${data.retrograde ? ' <span style="color: var(--accent-warm); font-weight: 800;">℞</span>' : ''}</div>
+                            <div class="planet-position">${sign} ${degree}°</div>
                         </div>
-                        <div class="degree-value">${degree}°</div>
+                        <div class="degree-value">${data.speed >= 0 ? '+' : ''}${data.speed.toFixed(2)}°/д</div>
                     </div>
                 `;
             });
@@ -1165,7 +1430,7 @@
                 const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
                 housesHtml += `
                     <div class="planet-row">
-                        <div class="planet-symbol">●</div>
+                        <div class="planet-symbol">${PLANET_SYMBOLS[name] || '●'}</div>
                         <div class="planet-info">
                             <div class="planet-name">${PLANETS_RU[name]}</div>
                             <div class="planet-position">Дом ${house}</div>
@@ -1178,7 +1443,7 @@
 
             // Аспекты
             let aspectsHtml = '';
-            chartData.aspects.slice(0, 10).forEach(aspect => {
+            chartData.aspects.slice(0, 16).forEach(aspect => {
                 aspectsHtml += `
                     <div class="aspect-item">
                         <div class="aspect-header">
@@ -1201,11 +1466,131 @@
                         <td>${ZODIAC_RU[data.sign]}</td>
                         <td>${data.degree.toFixed(1)}°</td>
                         <td>${house}</td>
-                        <td>${data.speed > 0 ? '+' : ''}${data.speed.toFixed(2)}°/день</td>
+                        <td>${data.retrograde ? '℞ ' : ''}${data.speed >= 0 ? '+' : ''}${data.speed.toFixed(2)}°/день</td>
                     </tr>
                 `;
             });
             document.getElementById('tableBody').innerHTML = tableHtml;
+
+            // Интерпретация (по введённым данным)
+            document.getElementById('interpretation').innerHTML = buildInterpretationHtml(chartData);
+        }
+
+        function buildInterpretationHtml(chartData) {
+            const ascSign = chartData.ascendantSign;
+            const ascSignName = ZODIAC_RU[ascSign];
+            const mcSignName = ZODIAC_RU[chartData.mcSign];
+            const ascElement = ELEMENTS[ascSign];
+            const ascModality = MODALITIES[ascSign % 3];
+            const ascDeg = (chartData.ascendant % 30).toFixed(1);
+            const mcDeg = (chartData.mc % 30).toFixed(1);
+            const rulerPrimary = chartData.chartRuler?.primary;
+            const rulerSecondary = chartData.chartRuler?.secondary;
+
+            const rulerText = [
+                rulerPrimary ? `${PLANETS_RU[rulerPrimary]} (${PLANET_SYMBOLS[rulerPrimary] || ''})` : null,
+                rulerSecondary ? `${PLANETS_RU[rulerSecondary]} (${PLANET_SYMBOLS[rulerSecondary] || ''})` : null
+            ].filter(Boolean).join(' / ');
+
+            const rulerDetails = [rulerPrimary, rulerSecondary].filter(Boolean).map((rk) => {
+                const p = chartData.planets[rk];
+                if (!p) return null;
+                const house = Math.floor((p.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
+                const aspects = chartData.aspects
+                    .filter(a => a.planet1 === rk || a.planet2 === rk)
+                    .slice(0, 6)
+                    .map(a => `${PLANETS_RU[a.planet1]} ${a.symbol} ${PLANETS_RU[a.planet2]} (орб ${a.orb}°)`)
+                    .join(', ');
+                return `
+                    <div style="margin-top: 8px; color: var(--text-muted);">
+                        <strong style="color: var(--text);">${PLANETS_RU[rk]}</strong>: ${ZODIAC_RU[p.sign]} ${p.degree.toFixed(1)}° — дом ${house}${p.retrograde ? ' (ретроград)' : ''}.
+                        ${aspects ? `<br><span style="color: var(--text-muted);">Ключевые аспекты: ${escapeHtml(aspects)}.</span>` : ''}
+                    </div>
+                `;
+            }).filter(Boolean).join('');
+
+            const retroList = Object.entries(chartData.planets)
+                .filter(([, p]) => p.retrograde)
+                .map(([k]) => `${PLANETS_RU[k]} ${PLANET_SYMBOLS[k] || ''}`)
+                .join(', ');
+
+            const destiny = `Опорные точки предназначения в карте обычно читают по МС (карьера/статус), управителю карты и Солнцу. В вашей карте МС в знаке «${mcSignName}» (${mcDeg}°), а Асцендент в «${ascSignName}» (${ascDeg}°).`;
+
+            const planetLines = Object.entries(chartData.planets).map(([k, p]) => {
+                const house = Math.floor((p.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
+                const aspectsCount = chartData.aspects.filter(a => a.planet1 === k || a.planet2 === k).length;
+                const theme = PLANET_THEMES[k] ? ` — ${PLANET_THEMES[k]}` : '';
+                return `<li><strong>${PLANETS_RU[k]}${p.retrograde ? ' ℞' : ''}</strong>: ${ZODIAC_RU[p.sign]} ${p.degree.toFixed(1)}° — дом ${house}. <span style="color: var(--text-muted);">(${aspectsCount} аспект(ов)${theme})</span></li>`;
+            }).join('');
+
+            const tenseAspects = chartData.aspects
+                .filter(a => a.type === 'напряжённый')
+                .slice(0, 8)
+                .map(a => `${PLANETS_RU[a.planet1]} ${a.symbol} ${PLANETS_RU[a.planet2]} (орб ${a.orb}°)`)
+                .join(', ');
+
+            return `
+                <div style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 10px;">
+                    <strong style="color: var(--text);">${escapeHtml(chartData.personName)}</strong>,
+                    ${escapeHtml(chartData.birth.date)} ${escapeHtml(chartData.birth.time)} (${escapeHtml(chartData.birth.timezone)}),
+                    ${escapeHtml(chartData.location.name)}${chartData.location.adminName1 ? ', ' + escapeHtml(chartData.location.adminName1) : ''}
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">а) Асцендент в натальной карте</div>
+                    <div style="color: var(--text-muted);">
+                        Асцендент показывает «маску» и первое впечатление, стиль проявления в мире и стартовый способ реагирования.
+                        У вас Асцендент в знаке <strong style="color: var(--text);">${ascSignName}</strong> (${ascDeg}°), стихия: <strong style="color: var(--text);">${ascElement}</strong>, качество: <strong style="color: var(--text);">${ascModality}</strong>.
+                        Это помогает понять, как вы «заходите» в любую ситуацию и какой стиль поведения считывают окружающие.
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">б) Управитель натальной карты</div>
+                    <div style="color: var(--text-muted);">
+                        Управитель карты определяется по знаку Асцендента: это «ведущая» планета, через которую карта чаще всего раскрывается в действиях.
+                        Управитель(и): <strong style="color: var(--text);">${rulerText || '—'}</strong>.
+                        ${rulerDetails ? `<div style="margin-top: 6px;">${rulerDetails}</div>` : ''}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">в) Влияние планет в натальной карте</div>
+                    <div style="color: var(--text-muted); margin-bottom: 6px;">
+                        Ключ — связка «планета → знак → дом → аспекты». Это даёт: что именно проявляется (планета), как проявляется (знак), где в жизни проявляется (дом) и насколько легко/напряжённо (аспекты).
+                        Ниже — ваши положения (строго по введённым данным):
+                    </div>
+                    <ul style="margin-left: 18px; color: var(--text-muted); line-height: 1.5;">
+                        ${planetLines}
+                    </ul>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">г) Предназначение личности в натальной карте</div>
+                    <div style="color: var(--text-muted);">
+                        ${destiny}
+                        Практически: смотрите, как проявляется знак МС («${mcSignName}») и где стоит управитель карты — это подсказывает стиль реализации.
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">д) Планеты в ретрограде</div>
+                    <div style="color: var(--text-muted);">
+                        ${retroList ? `Ретроградные планеты: <strong style="color: var(--text);">${retroList}</strong>.` : 'Ретроградных планет по текущему расчёту нет.'}
+                        Ретроградность показывает внутренний, «пересматривающий» способ проявления темы планеты: чаще через переосмысление, задержки, возвраты к теме, обучение через опыт и коррекцию стратегии.
+                    </div>
+                </div>
+
+                <div>
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">е) Проработка планет и аспектов</div>
+                    <div style="color: var(--text-muted);">
+                        Проработка обычно строится вокруг напряжённых аспектов (квадратуры/оппозиции/часть соединений) и ретроградов: это зоны роста, где нужен навык, режим и осознанные решения.
+                        ${tenseAspects ? `<br><br><strong style="color: var(--text);">Ваши напряжённые аспекты (топ):</strong> ${escapeHtml(tenseAspects)}.` : ''}
+                        <br><br>
+                        Универсальный принцип проработки: вместо «борьбы с аспектом» — дать ему понятный канал (действие/практика/правило), чтобы энергия не шла в самосаботаж.
+                    </div>
+                </div>
+            `;
         }
 
         function debounce(func, wait) {
@@ -1248,14 +1633,13 @@
 
         function shareChart() {
             const text = currentChart ? 
-                `Натальная карта рассчитана: Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}` :
+                `Натальная карта рассчитана: ${currentChart.personName || ''} Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}` :
                 'Натальная карта';
 
             if (navigator.share) {
                 navigator.share({ title: 'Натальная карта', text: text });
             } else {
-                alert('Ссылка скопирована в буфер обмена:
-' + window.location.href);
+                alert('Ссылка скопирована в буфер обмена:\n' + window.location.href);
                 navigator.clipboard.writeText(window.location.href);
             }
         }
