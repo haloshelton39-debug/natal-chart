@@ -114,6 +114,58 @@
             color: var(--text-muted);
         }
 
+        .timezone-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .timezone-row input {
+            flex: 1;
+        }
+
+        .timezone-btn {
+            flex: 0 0 auto;
+            width: auto;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 212, 255, 0.45);
+            background: rgba(0, 212, 255, 0.08);
+            color: var(--text);
+            font-size: 0.85em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .timezone-btn:hover:not(:disabled) {
+            background: rgba(0, 212, 255, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .timezone-toggle label {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 0.9em;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .timezone-toggle input[type="checkbox"] {
+            width: auto;
+            padding: 0;
+            margin: 0;
+            accent-color: var(--accent);
+        }
+
         .timezone-info {
             background: rgba(0, 212, 255, 0.1);
             border-left: 3px solid var(--accent);
@@ -589,7 +641,16 @@
 
                     <div class="form-group">
                         <label for="timezone">Часовой пояс</label>
-                        <input type="text" id="timezone" placeholder="Автоопределение..." readonly style="background: rgba(0, 212, 255, 0.1); cursor: not-allowed;">
+                        <div class="timezone-row">
+                            <input type="text" id="timezone" placeholder="Автоопределение (или введите вручную)..." readonly style="background: rgba(0, 212, 255, 0.1);">
+                            <button type="button" class="timezone-btn" id="detectTimezoneBtn" disabled>Определить</button>
+                        </div>
+                        <div class="timezone-toggle">
+                            <label>
+                                <input type="checkbox" id="timezoneManual">
+                                Ввести вручную
+                            </label>
+                        </div>
                         <div class="timezone-info" id="timezoneInfo">
                             Часовой пояс будет определён автоматически при выборе города
                         </div>
@@ -736,10 +797,17 @@
         };
 
         let currentChart = null;
+        let lastSelectedCoords = null;
 
         // Инициализация
         document.getElementById('chartForm').addEventListener('submit', handleSubmit);
         document.getElementById('birthPlace').addEventListener('input', debounce(handleCitySearch, 300));
+        document.getElementById('detectTimezoneBtn').addEventListener('click', () => {
+            if (lastSelectedCoords) getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
+        });
+        document.getElementById('timezoneManual').addEventListener('change', (e) => {
+            setTimezoneManualMode(e.target.checked);
+        });
 
         async function handleCitySearch(e) {
             const query = e.target.value;
@@ -778,24 +846,80 @@
             document.getElementById('birthCountry').value = country;
             document.getElementById('citySuggestions').style.display = 'none';
 
-            // Получить часовой пояс
-            getTimezone(lat, lng);
+            lastSelectedCoords = { lat, lng };
+            document.getElementById('detectTimezoneBtn').disabled = false;
+
+            // Получить часовой пояс (если не включён ручной ввод)
+            if (!document.getElementById('timezoneManual').checked) {
+                getTimezone(lat, lng);
+            } else {
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Ручной ввод включён:</strong> вы можете ввести часовой пояс, либо нажмите «Определить»`;
+            }
+        }
+
+        function setTimezoneManualMode(enabled) {
+            const tzInput = document.getElementById('timezone');
+
+            if (enabled) {
+                tzInput.removeAttribute('readonly');
+                tzInput.style.background = 'rgba(255, 255, 255, 0.05)';
+                tzInput.style.cursor = 'text';
+                if (!tzInput.value) {
+                    document.getElementById('timezoneInfo').innerHTML =
+                        `<strong>Ручной ввод:</strong> введите IANA timezone (например, Europe/Moscow)`;
+                }
+            } else {
+                tzInput.setAttribute('readonly', 'readonly');
+                tzInput.style.background = 'rgba(0, 212, 255, 0.1)';
+                tzInput.style.cursor = 'default';
+                if (lastSelectedCoords) {
+                    document.getElementById('timezoneInfo').innerHTML =
+                        `Часовой пояс будет определён автоматически при выборе города`;
+                    getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
+                } else {
+                    document.getElementById('timezoneInfo').innerHTML =
+                        `Часовой пояс будет определён автоматически при выборе города`;
+                }
+            }
         }
 
         async function getTimezone(lat, lng) {
             try {
+                const btn = document.getElementById('detectTimezoneBtn');
+                btn.disabled = true;
+                document.getElementById('timezoneInfo').innerHTML = `Определяем часовой пояс...`;
+
+                // GeoNames timezone endpoint (без отдельного ключа; используется тот же username)
                 const response = await fetch(
-                    `https://api.weatherapi.com/v1/timezone.json?key=DEMO&q=${lat},${lng}`
+                    `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
                 );
                 const data = await response.json();
-                const tz = data.timezone_id;
+                const tz = data.timezoneId;
+                if (!tz) throw new Error('Timezone not found');
+
                 document.getElementById('timezone').value = tz;
-                document.getElementById('timezoneInfo').innerHTML = `
-                    <strong>Часовой пояс:</strong> ${tz}
-                `;
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Часовой пояс:</strong> ${tz}` +
+                    (typeof data.gmtOffset === 'number' ? ` <span style="color: var(--text-muted);">(UTC${data.gmtOffset >= 0 ? '+' : ''}${data.gmtOffset})</span>` : '');
+
+                // Успешное авто-определение: держим поле в авто-режиме, если пользователь не включил ручной ввод
+                if (!document.getElementById('timezoneManual').checked) {
+                    document.getElementById('timezone').setAttribute('readonly', 'readonly');
+                    document.getElementById('timezone').style.background = 'rgba(0, 212, 255, 0.1)';
+                    document.getElementById('timezone').style.cursor = 'default';
+                }
+
+                btn.disabled = false;
             } catch (error) {
-                document.getElementById('timezoneInfo').innerHTML = 
-                    `<strong>Примечание:</strong> Часовой пояс должен быть определён вручную`;
+                // Если автоопределение не удалось — делаем ввод активным, чтобы форма не оставалась "неактивной"
+                document.getElementById('timezoneManual').checked = true;
+                setTimezoneManualMode(true);
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Не удалось определить автоматически.</strong> Введите часовой пояс вручную (например, Europe/Moscow).`;
+
+                // Кнопку "Определить" оставляем доступной, если есть координаты
+                document.getElementById('detectTimezoneBtn').disabled = !lastSelectedCoords;
             }
         }
 
