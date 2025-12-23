@@ -1,7 +1,15 @@
+"""
+Скрипт для создания визуализации натальной карты с использованием Plotly.
+Требует установки: pip install plotly numpy kaleido
+"""
 
-import plotly.graph_objects as go
-import numpy as np
-import math
+try:
+    import plotly.graph_objects as go
+    import numpy as np
+except ImportError as e:
+    print(f"Ошибка: Не установлены необходимые библиотеки: {e}")
+    print("Установите их командой: pip install plotly numpy kaleido")
+    exit(1)
 
 # Create figure with black background
 fig = go.Figure()
@@ -194,5 +202,24 @@ fig.update_layout(
 )
 
 # Save the chart
-fig.write_image("natal_chart.png")
-fig.write_image("natal_chart.svg", format="svg")
+try:
+    # Попытка сохранить как изображение (требует kaleido)
+    fig.write_image("natal_chart.png")
+    print("✅ Изображение сохранено: natal_chart.png")
+except Exception as e:
+    print(f"⚠️  Не удалось сохранить PNG (возможно, не установлен kaleido): {e}")
+    print("   Установите: pip install kaleido")
+    print("   Или используйте HTML версию ниже")
+
+try:
+    fig.write_image("natal_chart.svg", format="svg")
+    print("✅ SVG сохранено: natal_chart.svg")
+except Exception as e:
+    print(f"⚠️  Не удалось сохранить SVG: {e}")
+
+# Всегда сохраняем HTML версию (не требует kaleido)
+try:
+    fig.write_html("natal_chart.html")
+    print("✅ HTML версия сохранена: natal_chart.html")
+except Exception as e:
+    print(f"❌ Ошибка при сохранении HTML: {e}")

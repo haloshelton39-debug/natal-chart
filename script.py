@@ -65,11 +65,15 @@ celestial_data = {
     "aspects": aspects_data
 }
 
-with open('astrology_data.json', 'w', encoding='utf-8') as f:
-    json.dump(celestial_data, f, ensure_ascii=False, indent=2)
-
-print("Данные астрологии сохранены в astrology_data.json")
-print(f"Планеты: {len(planets_data)}")
-print(f"Знаки зодиака: {len(zodiac_signs)}")
-print(f"Дома: {len(houses_meanings)}")
-print(f"Аспекты: {len(aspects_data)}")
+try:
+    with open('astrology_data.json', 'w', encoding='utf-8') as f:
+        json.dump(celestial_data, f, ensure_ascii=False, indent=2)
+    print("✅ Данные астрологии сохранены в astrology_data.json")
+    print(f"📊 Планеты: {len(planets_data)}")
+    print(f"📊 Знаки зодиака: {len(zodiac_signs)}")
+    print(f"📊 Дома: {len(houses_meanings)}")
+    print(f"📊 Аспекты: {len(aspects_data)}")
+except IOError as e:
+    print(f"❌ Ошибка при сохранении файла: {e}")
+except Exception as e:
+    print(f"❌ Неожиданная ошибка: {e}")
