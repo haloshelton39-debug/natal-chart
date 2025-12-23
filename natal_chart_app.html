@@ -1014,6 +1014,80 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // Нормализация TZ для Luxon:
+        // - IANA: "Europe/Moscow"
+        // - смещение: "+03:00", "UTC+3", "GMT-5", "3" → "UTC+03:00"
+        function normalizeTimezoneInput(tzRaw) {
+            const tz = String(tzRaw ?? '').trim();
+            if (!tz) return '';
+
+            // Похоже на IANA
+            if (tz.includes('/')) return tz;
+
+            // Чистое числовое смещение (в т.ч. десятичное): "3", "-3", "5.5"
+            // Пример: 5.5 → UTC+05:30
+            if (/^[+-]?\d{1,2}(?:\.\d+)?$/.test(tz)) {
+                const num = Number(tz);
+                if (Number.isFinite(num) && Math.abs(num) <= 14) {
+                    const sign = num >= 0 ? '+' : '-';
+                    const abs = Math.abs(num);
+                    let hours = Math.floor(abs);
+                    let mins = Math.round((abs - hours) * 60);
+                    if (mins === 60) {
+                        hours += 1;
+                        mins = 0;
+                    }
+                    const hh = String(hours).padStart(2, '0');
+                    const mm = String(mins).padStart(2, '0');
+                    return `UTC${sign}${hh}:${mm}`;
+                }
+            }
+
+            // Приводим "GMT" → "UTC"
+            let s = tz.toUpperCase().replace(/^GMT/, 'UTC');
+
+            // "UTC" без смещения
+            if (s === 'UTC' || s === 'Z') return 'UTC';
+
+            // Убираем пробелы: "UTC +3" → "UTC+3"
+            s = s.replace(/\s+/g, '');
+
+            // Допустимые формы:
+            // - "UTC+3", "UTC-03", "UTC+03:00", "+03:00", "-5", "3"
+            const m = s.match(/^(?:UTC)?(?:(?<sign>[+-])(?<h>\d{1,2})(?::?(?<min>\d{2}))?|(?<bare>\d{1,2}))$/);
+            if (!m) return tz;
+
+            const sign = m.groups?.sign ?? '+';
+            const hoursStr = m.groups?.h ?? m.groups?.bare ?? '0';
+            const minsStr = m.groups?.min ?? '00';
+
+            const hours = Number(hoursStr);
+            const mins = Number(minsStr);
+            if (!Number.isFinite(hours) || !Number.isFinite(mins) || hours > 14 || mins >= 60) return tz;
+
+            const hh = String(hours).padStart(2, '0');
+            const mm = String(mins).padStart(2, '0');
+            return `UTC${sign}${hh}:${mm}`;
+        }
+
+        function formatUtcOffset(hoursOrSeconds) {
+            if (hoursOrSeconds === null || hoursOrSeconds === undefined) return '';
+            let totalMinutes;
+            if (typeof hoursOrSeconds === 'number' && Math.abs(hoursOrSeconds) > 25) {
+                // похоже на секунды
+                totalMinutes = Math.round(hoursOrSeconds / 60);
+            } else {
+                totalMinutes = Math.round(Number(hoursOrSeconds) * 60);
+            }
+            if (!Number.isFinite(totalMinutes)) return '';
+
+            const sign = totalMinutes >= 0 ? '+' : '-';
+            const abs = Math.abs(totalMinutes);
+            const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+            const mm = String(abs % 60).padStart(2, '0');
+            return `UTC${sign}${hh}:${mm}`;
+        }
+
         function setTimezoneManualMode(enabled) {
             const tzInput = document.getElementById('timezone');
 
@@ -1046,27 +1120,53 @@
                 btn.disabled = true;
                 document.getElementById('timezoneInfo').innerHTML = `Определяем часовой пояс...`;
 
-                // GeoNames timezone endpoint (без отдельного ключа; используется тот же username)
-                const response = await fetch(
-                    `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
-                );
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                const tz = data.timezoneId;
-                if (!tz) throw new Error('Timezone not found');
+                const tzInput = document.getElementById('timezone');
 
-                document.getElementById('timezone').value = tz;
+                async function tryGeoNames() {
+                    const response = await fetch(
+                        `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
+                    );
+                    if (!response.ok) throw new Error(`GeoNames HTTP ${response.status}`);
+                    const data = await response.json();
+                    if (data?.status?.message) throw new Error(`GeoNames: ${data.status.message}`);
+                    if (!data?.timezoneId) throw new Error('GeoNames: timezoneId not found');
+                    return { tz: data.timezoneId, offsetLabel: (typeof data.gmtOffset === 'number' ? formatUtcOffset(data.gmtOffset) : '') };
+                }
+
+                // Фолбэк без ключа: timeapi.io обычно нормально работает даже при Origin: null (file://)
+                async function tryTimeApi() {
+                    const response = await fetch(
+                        `https://timeapi.io/api/TimeZone/coordinate?latitude=${lat}&longitude=${lng}`
+                    );
+                    if (!response.ok) throw new Error(`TimeAPI HTTP ${response.status}`);
+                    const data = await response.json();
+                    if (!data?.timeZone) throw new Error('TimeAPI: timeZone not found');
+                    const seconds = data?.currentUtcOffset?.seconds;
+                    return { tz: data.timeZone, offsetLabel: (typeof seconds === 'number' ? formatUtcOffset(seconds) : '') };
+                }
+
+                let resolved = null;
+                try {
+                    resolved = await tryGeoNames();
+                } catch (e1) {
+                    try {
+                        resolved = await tryTimeApi();
+                    } catch (e2) {
+                        throw new Error(`${e1?.message || e1}; ${e2?.message || e2}`);
+                    }
+                }
+
+                const tz = normalizeTimezoneInput(resolved.tz);
+                tzInput.value = tz;
                 document.getElementById('timezoneInfo').innerHTML =
-                    `<strong>Часовой пояс:</strong> ${tz}` +
-                    (typeof data.gmtOffset === 'number' ? ` <span style="color: var(--text-muted);">(UTC${data.gmtOffset >= 0 ? '+' : ''}${data.gmtOffset})</span>` : '');
+                    `<strong>Часовой пояс:</strong> ${escapeHtml(tz)}` +
+                    (resolved.offsetLabel ? ` <span style="color: var(--text-muted);">(${escapeHtml(resolved.offsetLabel)})</span>` : '');
 
                 // Успешное авто-определение: держим поле в авто-режиме, если пользователь не включил ручной ввод
                 if (!document.getElementById('timezoneManual').checked) {
-                    document.getElementById('timezone').setAttribute('readonly', 'readonly');
-                    document.getElementById('timezone').style.background = 'rgba(0, 212, 255, 0.1)';
-                    document.getElementById('timezone').style.cursor = 'default';
+                    tzInput.setAttribute('readonly', 'readonly');
+                    tzInput.style.background = 'rgba(0, 212, 255, 0.1)';
+                    tzInput.style.cursor = 'default';
                 }
 
                 btn.disabled = false;
@@ -1105,7 +1205,11 @@
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
-            const timezone = document.getElementById('timezone').value.trim();
+            const timezoneRaw = document.getElementById('timezone').value.trim();
+            const timezone = normalizeTimezoneInput(timezoneRaw);
+            if (timezone && timezone !== timezoneRaw) {
+                document.getElementById('timezone').value = timezone;
+            }
 
             if (!personName || !birthDate || !birthTime || !birthPlace) {
                 showError('Пожалуйста, заполните все поля');
