@@ -246,8 +246,12 @@ livejournal.com/astro_community - Сообщество астрологов
 Приватность: Все расчёты - локально, данные не передаются на сервер
 """
 
-with open('QUICK_START.txt', 'w', encoding='utf-8') as f:
-    f.write(quick_guide)
-
-print("✅ Быстрый старт создан: QUICK_START.txt")
-print(f"📄 Размер справки: {len(quick_guide)} символов")
+try:
+    with open('QUICK_START.txt', 'w', encoding='utf-8') as f:
+        f.write(quick_guide)
+    print("✅ Быстрый старт создан: QUICK_START.txt")
+    print(f"📄 Размер справки: {len(quick_guide)} символов")
+except IOError as e:
+    print(f"❌ Ошибка при сохранении файла: {e}")
+except Exception as e:
+    print(f"❌ Неожиданная ошибка: {e}")

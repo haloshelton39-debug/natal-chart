@@ -390,10 +390,14 @@ index_html = '''<!DOCTYPE html>
 </html>
 '''
 
-with open('index.html', 'w', encoding='utf-8') as f:
-    f.write(index_html)
-
-print("✅ Индексный файл создан: index.html")
+try:
+    with open('index.html', 'w', encoding='utf-8') as f:
+        f.write(index_html)
+    print("✅ Индексный файл создан: index.html")
+except IOError as e:
+    print(f"❌ Ошибка при сохранении файла: {e}")
+except Exception as e:
+    print(f"❌ Неожиданная ошибка: {e}")
 print("\n" + "="*70)
 print("📦 ИТОГОВЫЙ СПИСОК ФАЙЛОВ ПРОЕКТА:")
 print("="*70)

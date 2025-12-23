@@ -1268,11 +1268,15 @@ html_code = '''
 '''
 
 # Сохранение HTML
-with open('natal_chart_app.html', 'w', encoding='utf-8') as f:
-    f.write(html_code)
-
-print("✅ Приложение создано: natal_chart_app.html")
-print(f"📊 Размер кода: {len(html_code)} символов")
+try:
+    with open('natal_chart_app.html', 'w', encoding='utf-8') as f:
+        f.write(html_code)
+    print("✅ Приложение создано: natal_chart_app.html")
+    print(f"📊 Размер кода: {len(html_code)} символов")
+except IOError as e:
+    print(f"❌ Ошибка при сохранении файла: {e}")
+except Exception as e:
+    print(f"❌ Неожиданная ошибка: {e}")
 print("\n🎨 Функциональность:")
 print("  ✓ Ввод данных рождения (дата, время, город, страна)")
 print("  ✓ Автоопределение часового пояса через API")

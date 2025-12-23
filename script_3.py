@@ -486,11 +486,15 @@ HTTPS:
 ═══════════════════════════════════════════════════════════════════════
 """
 
-with open('TECHNICAL.md', 'w', encoding='utf-8') as f:
-    f.write(tech_doc)
-
-print("✅ Техническая документация создана: TECHNICAL.md")
-print(f"📄 Размер документа: {len(tech_doc)} символов")
+try:
+    with open('TECHNICAL.md', 'w', encoding='utf-8') as f:
+        f.write(tech_doc)
+    print("✅ Техническая документация создана: TECHNICAL.md")
+    print(f"📄 Размер документа: {len(tech_doc)} символов")
+except IOError as e:
+    print(f"❌ Ошибка при сохранении файла: {e}")
+except Exception as e:
+    print(f"❌ Неожиданная ошибка: {e}")
 print("\n" + "="*70)
 print("🎉 ВСЕ ФАЙЛЫ УСПЕШНО СОЗДАНЫ")
 print("="*70)

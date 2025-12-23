@@ -267,7 +267,11 @@ astrology_data.json           ← Справочные данные
 print(summary)
 
 # Также сохраним как файл
-with open('RESUME.txt', 'w', encoding='utf-8') as f:
-    f.write(summary)
-
-print("\n✅ Резюме сохранено в файл: RESUME.txt")
+try:
+    with open('RESUME.txt', 'w', encoding='utf-8') as f:
+        f.write(summary)
+    print("\n✅ Резюме сохранено в файл: RESUME.txt")
+except IOError as e:
+    print(f"\n❌ Ошибка при сохранении файла: {e}")
+except Exception as e:
+    print(f"\n❌ Неожиданная ошибка: {e}")
