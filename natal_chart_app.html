@@ -889,6 +889,10 @@
         let currentChart = null;
         let lastSelectedCoords = null;
         let lastSelectedPlaceMeta = null;
+        // GeoNames требует username. "demo" часто упирается в суточные лимиты, поэтому:
+        // - если username не задан — используем фолбэк-геокодер без ключа (Open-Meteo)
+        // - timezone определяем через TimeAPI (без ключа) либо из результата геокодинга
+        const GEONAMES_USERNAME = (localStorage.getItem('geonamesUsername') || '').trim();
 
         // Инициализация
         document.getElementById('chartForm').addEventListener('submit', handleSubmit);
@@ -913,6 +917,82 @@
             setTimezoneManualMode(e.target.checked);
         });
 
+        function setSelectIfHasOption(selectEl, value) {
+            const v = String(value ?? '').toUpperCase();
+            if (!v) return;
+            for (const opt of Array.from(selectEl.options)) {
+                if (opt.value === v) {
+                    selectEl.value = v;
+                    return;
+                }
+            }
+        }
+
+        function normalizeCityFromGeoNames(city) {
+            return {
+                name: city?.name ?? '',
+                lat: Number(city?.lat),
+                lng: Number(city?.lng),
+                countryCode: String(city?.countryCode ?? '').toUpperCase(),
+                countryName: city?.countryName ?? '',
+                adminName1: city?.adminName1 ?? '',
+                timezoneId: null,
+                population: Number(city?.population ?? 0)
+            };
+        }
+
+        function normalizeCityFromOpenMeteo(row) {
+            return {
+                name: row?.name ?? '',
+                lat: Number(row?.latitude),
+                lng: Number(row?.longitude),
+                countryCode: String(row?.country_code ?? '').toUpperCase(),
+                countryName: row?.country ?? '',
+                adminName1: row?.admin1 ?? '',
+                timezoneId: row?.timezone ?? null,
+                population: Number(row?.population ?? 0)
+            };
+        }
+
+        async function searchCities({ query, countryCode }) {
+            const encoded = encodeURIComponent(query);
+            const country = encodeURIComponent(countryCode || 'RU');
+
+            // 1) GeoNames (если задан собственный username)
+            if (GEONAMES_USERNAME) {
+                const user = encodeURIComponent(GEONAMES_USERNAME);
+                const urlStarts = `https://secure.geonames.org/searchJSON?name_startsWith=${encoded}&country=${country}&featureClass=P&maxRows=12&orderby=population&username=${user}`;
+                const r1 = await fetch(urlStarts);
+                if (r1.ok) {
+                    const d1 = await r1.json();
+                    if (!d1?.status?.message) {
+                        const list1 = Array.isArray(d1?.geonames) ? d1.geonames.map(normalizeCityFromGeoNames) : [];
+                        if (list1.length) return list1;
+                    }
+                }
+
+                const urlQ = `https://secure.geonames.org/searchJSON?q=${encoded}&country=${country}&featureClass=P&maxRows=12&orderby=population&username=${user}`;
+                const r2 = await fetch(urlQ);
+                if (r2.ok) {
+                    const d2 = await r2.json();
+                    if (!d2?.status?.message) {
+                        const list2 = Array.isArray(d2?.geonames) ? d2.geonames.map(normalizeCityFromGeoNames) : [];
+                        if (list2.length) return list2;
+                    }
+                }
+            }
+
+            // 2) Фолбэк: Open-Meteo Geocoding (без ключа). Возвращает lat/lng + timezone.
+            const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}&count=12&language=ru&format=json&country=${country}`;
+            const r = await fetch(url);
+            if (!r.ok) return [];
+            const d = await r.json();
+            const rows = Array.isArray(d?.results) ? d.results : [];
+            const normalized = rows.map(normalizeCityFromOpenMeteo);
+            normalized.sort((a, b) => (b.population || 0) - (a.population || 0));
+            return normalized;
+        }
+
         async function handleCitySearch(e) {
             const query = (e.target.value || '').trim();
             if (query.length < 2) {
@@ -921,32 +1001,9 @@
             }
 
             try {
-                const country = document.getElementById('birthCountry').value || 'RU';
-
-                // Важно: encodeURIComponent нужен для кириллицы и пробелов (например, "Мытищи", "New York").
-                const encoded = encodeURIComponent(query);
-
-                // 1) Быстрый поиск по началу названия
-                const urlStarts = `https://secure.geonames.org/searchJSON?name_startsWith=${encoded}&country=${encodeURIComponent(country)}&featureClass=P&maxRows=12&orderby=population&username=demo`;
-                const response1 = await fetch(urlStarts);
-                if (!response1.ok) {
-                    throw new Error(`HTTP error! status: ${response1.status}`);
-                }
-                const data1 = await response1.json();
-                let geonames = Array.isArray(data1?.geonames) ? data1.geonames : [];
-
-                // 2) Фолбэк для русских/альтернативных названий: общий поиск (q) часто находит "Мытищи" и похожие.
-                if (geonames.length === 0) {
-                    const urlQ = `https://secure.geonames.org/searchJSON?q=${encoded}&country=${encodeURIComponent(country)}&featureClass=P&maxRows=12&orderby=population&username=demo`;
-                    const response2 = await fetch(urlQ);
-                    if (!response2.ok) {
-                        throw new Error(`HTTP error! status: ${response2.status}`);
-                    }
-                    const data2 = await response2.json();
-                    geonames = Array.isArray(data2?.geonames) ? data2.geonames : [];
-                }
-
-                renderCitySuggestions(geonames);
+                const countryCode = document.getElementById('birthCountry').value || 'RU';
+                const candidates = await searchCities({ query, countryCode });
+                renderCitySuggestions(candidates);
             } catch (error) {
                 console.error('Ошибка поиска города:', error);
             }
@@ -984,7 +1041,7 @@
             const country = city.countryCode;
 
             document.getElementById('birthPlace').value = name;
-            if (country) document.getElementById('birthCountry').value = country;
+            if (country) setSelectIfHasOption(document.getElementById('birthCountry'), country);
             document.getElementById('citySuggestions').style.display = 'none';
 
             lastSelectedCoords = { lat, lng };
@@ -998,7 +1055,15 @@
 
             // Получить часовой пояс (если не включён ручной ввод)
             if (!document.getElementById('timezoneManual').checked) {
-                getTimezone(lat, lng);
+                // Если геокодер уже отдал TZ (Open-Meteo), используем сразу — быстрее и без доп. запросов.
+                if (city.timezoneId) {
+                    const tz = normalizeTimezoneInput(city.timezoneId);
+                    document.getElementById('timezone').value = tz;
+                    document.getElementById('timezoneInfo').innerHTML =
+                        `<strong>Часовой пояс:</strong> ${escapeHtml(tz)}`;
+                } else {
+                    getTimezone(lat, lng);
+                }
             } else {
                 document.getElementById('timezoneInfo').innerHTML =
                     `<strong>Ручной ввод включён:</strong> вы можете ввести часовой пояс, либо нажмите «Определить»`;
@@ -1123,8 +1188,10 @@
                 const tzInput = document.getElementById('timezone');
 
                 async function tryGeoNames() {
+                    // Не дергаем публичный "demo": он регулярно упирается в лимиты и ломает UX.
+                    if (!GEONAMES_USERNAME) throw new Error('GeoNames username not configured');
                     const response = await fetch(
-                        `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
+                        `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=${encodeURIComponent(GEONAMES_USERNAME)}`
                     );
                     if (!response.ok) throw new Error(`GeoNames HTTP ${response.status}`);
                     const data = await response.json();
