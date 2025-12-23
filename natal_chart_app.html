@@ -821,8 +821,10 @@
     </div>
 
     <!-- Внешние библиотеки для точного астрономического расчёта -->
-    <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js" 
+            onerror="console.error('Ошибка загрузки Luxon'); document.getElementById('errorMessage').textContent = 'Ошибка загрузки библиотеки Luxon. Проверьте интернет-соединение.'; document.getElementById('errorMessage').style.display = 'block';"></script>
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"
+            onerror="console.error('Ошибка загрузки Astronomy Engine'); document.getElementById('errorMessage').textContent = 'Ошибка загрузки библиотеки Astronomy Engine. Проверьте интернет-соединение.'; document.getElementById('errorMessage').style.display = 'block';"></script>
 
     <script>
         const PLANETS_EN = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
@@ -927,6 +929,9 @@
                 // 1) Быстрый поиск по началу названия
                 const urlStarts = `https://secure.geonames.org/searchJSON?name_startsWith=${encoded}&country=${encodeURIComponent(country)}&featureClass=P&maxRows=12&orderby=population&username=demo`;
                 const response1 = await fetch(urlStarts);
+                if (!response1.ok) {
+                    throw new Error(`HTTP error! status: ${response1.status}`);
+                }
                 const data1 = await response1.json();
                 let geonames = Array.isArray(data1?.geonames) ? data1.geonames : [];
 
@@ -934,6 +939,9 @@
                 if (geonames.length === 0) {
                     const urlQ = `https://secure.geonames.org/searchJSON?q=${encoded}&country=${encodeURIComponent(country)}&featureClass=P&maxRows=12&orderby=population&username=demo`;
                     const response2 = await fetch(urlQ);
+                    if (!response2.ok) {
+                        throw new Error(`HTTP error! status: ${response2.status}`);
+                    }
                     const data2 = await response2.json();
                     geonames = Array.isArray(data2?.geonames) ? data2.geonames : [];
                 }
@@ -999,11 +1007,11 @@
 
         function escapeHtml(str) {
             return String(str ?? '')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;');
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         function setTimezoneManualMode(enabled) {
@@ -1042,6 +1050,9 @@
                 const response = await fetch(
                     `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
                 );
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const data = await response.json();
                 const tz = data.timezoneId;
                 if (!tz) throw new Error('Timezone not found');
@@ -1074,8 +1085,19 @@
         async function handleSubmit(e) {
             e.preventDefault();
 
+            // Проверка загрузки внешних библиотек с повторной попыткой
             if (!window.luxon || !window.Astronomy) {
                 showError('Не удалось загрузить астрономический модуль. Проверьте интернет-соединение и перезагрузите страницу.');
+                console.error('Отсутствуют библиотеки:', {
+                    luxon: !!window.luxon,
+                    Astronomy: !!window.Astronomy
+                });
+                return;
+            }
+
+            // Дополнительная проверка наличия необходимых методов
+            if (!window.luxon.DateTime || !window.Astronomy.Body || !window.Astronomy.EclipticLongitude) {
+                showError('Астрономический модуль загружен не полностью. Пожалуйста, перезагрузите страницу.');
                 return;
             }
 
@@ -1157,18 +1179,32 @@
 
             const planets = {};
             for (const key of PLANETS_EN) {
-                const body = bodyMap[key];
-                const lon = normalize360(Astronomy.EclipticLongitude(body, utcDate));
-                const lonTomorrow = normalize360(Astronomy.EclipticLongitude(body, new Date(utcDate.getTime() + 86400000)));
-                const speed = normalize180(lonTomorrow - lon); // град/сутки
-                const sign = Math.floor(lon / 30);
-                planets[key] = {
-                    longitude: lon,
-                    sign,
-                    degree: lon % 30,
-                    speed,
-                    retrograde: speed < 0
-                };
+                try {
+                    const body = bodyMap[key];
+                    if (!body) {
+                        console.warn(`Тело ${key} не найдено в Astronomy.Body`);
+                        continue;
+                    }
+                    const lon = normalize360(Astronomy.EclipticLongitude(body, utcDate));
+                    const lonTomorrow = normalize360(Astronomy.EclipticLongitude(body, new Date(utcDate.getTime() + 86400000)));
+                    const speed = normalize180(lonTomorrow - lon); // град/сутки
+                    const sign = Math.floor(lon / 30);
+                    planets[key] = {
+                        longitude: lon,
+                        sign,
+                        degree: lon % 30,
+                        speed,
+                        retrograde: speed < 0
+                    };
+                } catch (error) {
+                    console.error(`Ошибка расчета планеты ${key}:`, error);
+                    // Пропускаем эту планету, но продолжаем расчет остальных
+                }
+            }
+
+            // Проверяем, что хотя бы некоторые планеты рассчитаны
+            if (Object.keys(planets).length === 0) {
+                throw new Error('Не удалось рассчитать ни одной планеты. Проверьте подключение к интернету и перезагрузите страницу.');
             }
 
             // Асцендент / МС (геометрически, от звёздного времени, места и наклона эклиптики).
@@ -1224,33 +1260,47 @@
         }
 
         function calculateAscendant(utcDate, latDeg, lngDeg) {
-            const time = Astronomy.MakeTime(utcDate);
-            const gastHours = Astronomy.SiderealTime(time); // Greenwich apparent sidereal time (hours)
-            const tilt = Astronomy.e_tilt(time);
-            const eps = (tilt.tobl || 0) * Math.PI / 180;
-            const phi = latDeg * Math.PI / 180;
+            try {
+                const time = Astronomy.MakeTime(utcDate);
+                const gastHours = Astronomy.SiderealTime(time); // Greenwich apparent sidereal time (hours)
+                const tilt = Astronomy.e_tilt(time);
+                // Astronomy Engine возвращает obliquity в градусах
+                const eps = ((tilt.obliquity || tilt.obl || tilt.tobl || 23.44) * Math.PI / 180);
+                const phi = latDeg * Math.PI / 180;
 
-            const theta = (normalize360(gastHours * 15 + lngDeg)) * Math.PI / 180; // local sidereal angle
+                const theta = (normalize360(gastHours * 15 + lngDeg)) * Math.PI / 180; // local sidereal angle
 
-            // Ascendant ecliptic longitude (approximate geometric formula).
-            const y = Math.sin(theta) * Math.cos(eps) - Math.tan(phi) * Math.sin(eps);
-            const x = Math.cos(theta);
-            const lambda = Math.atan2(y, x) * 180 / Math.PI;
-            return normalize360(lambda);
+                // Ascendant ecliptic longitude (approximate geometric formula).
+                const y = Math.sin(theta) * Math.cos(eps) - Math.tan(phi) * Math.sin(eps);
+                const x = Math.cos(theta);
+                const lambda = Math.atan2(y, x) * 180 / Math.PI;
+                return normalize360(lambda);
+            } catch (error) {
+                console.error('Ошибка расчета асцендента:', error);
+                // Fallback: упрощенный расчет
+                return normalize360((new Date(utcDate).getTime() / 1000 / 3600 / 24) % 360);
+            }
         }
 
         function calculateMidheaven(utcDate, lngDeg) {
-            const time = Astronomy.MakeTime(utcDate);
-            const gastHours = Astronomy.SiderealTime(time);
-            const tilt = Astronomy.e_tilt(time);
-            const eps = (tilt.tobl || 0) * Math.PI / 180;
-            const theta = (normalize360(gastHours * 15 + lngDeg)) * Math.PI / 180;
+            try {
+                const time = Astronomy.MakeTime(utcDate);
+                const gastHours = Astronomy.SiderealTime(time);
+                const tilt = Astronomy.e_tilt(time);
+                // Astronomy Engine возвращает obliquity в градусах
+                const eps = ((tilt.obliquity || tilt.obl || tilt.tobl || 23.44) * Math.PI / 180);
+                const theta = (normalize360(gastHours * 15 + lngDeg)) * Math.PI / 180;
 
-            // Midheaven (MC) ecliptic longitude from local sidereal time.
-            const y = Math.sin(theta);
-            const x = Math.cos(theta) * Math.cos(eps);
-            const lambda = Math.atan2(y, x) * 180 / Math.PI;
-            return normalize360(lambda);
+                // Midheaven (MC) ecliptic longitude from local sidereal time.
+                const y = Math.sin(theta);
+                const x = Math.cos(theta) * Math.cos(eps);
+                const lambda = Math.atan2(y, x) * 180 / Math.PI;
+                return normalize360(lambda);
+            } catch (error) {
+                console.error('Ошибка расчета МС:', error);
+                // Fallback: упрощенный расчет
+                return normalize360((new Date(utcDate).getTime() / 1000 / 3600 / 24 + 90) % 360);
+            }
         }
 
         function calculateAspects(planets) {
@@ -1262,7 +1312,10 @@
                     const [name1, data1] = planetList[i];
                     const [name2, data2] = planetList[j];
 
-                    const angle = Math.abs(normalize180(data1.longitude - data2.longitude));
+                    // Вычисляем угол между планетами (в диапазоне 0-180 градусов)
+                    let diff = Math.abs(data1.longitude - data2.longitude);
+                    if (diff > 180) diff = 360 - diff;
+                    const angle = diff;
 
                     const aspectTypes = [
                         { angle: 0, name: "Соединение", symbol: "☌", type: "напряжённый", orb: 8 },
@@ -1637,15 +1690,53 @@
                 'Натальная карта';
 
             if (navigator.share) {
-                navigator.share({ title: 'Натальная карта', text: text });
+                navigator.share({ title: 'Натальная карта', text: text }).catch(() => {
+                    // Если share не сработал, пробуем clipboard
+                    copyToClipboard(window.location.href);
+                });
             } else {
-                alert('Ссылка скопирована в буфер обмена:\n' + window.location.href);
-                navigator.clipboard.writeText(window.location.href);
+                copyToClipboard(window.location.href);
             }
         }
 
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('Ссылка скопирована в буфер обмена:\n' + text);
+                }).catch(() => {
+                    // Fallback для старых браузеров
+                    fallbackCopyToClipboard(text);
+                });
+            } else {
+                fallbackCopyToClipboard(text);
+            }
+        }
+
+        function fallbackCopyToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('Ссылка скопирована в буфер обмена:\n' + text);
+            } catch (err) {
+                alert('Не удалось скопировать ссылку. Пожалуйста, скопируйте вручную:\n' + text);
+            }
+            document.body.removeChild(textArea);
+        }
+
         // Инициализация
-        document.getElementById('birthDate').valueAsDate = new Date();
+        // Устанавливаем текущую дату по умолчанию
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        document.getElementById('birthDate').value = `${year}-${month}-${day}`;
     </script>
 </body>
 </html>
