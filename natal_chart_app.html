@@ -666,24 +666,6 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="birthCountry">Страна</label>
-                        <select id="birthCountry" required>
-                            <option value="">-- Выбрать страну --</option>
-                            <option value="RU">Россия</option>
-                            <option value="BY">Беларусь</option>
-                            <option value="KZ">Казахстан</option>
-                            <option value="UA">Украина</option>
-                            <option value="US">США</option>
-                            <option value="DE">Германия</option>
-                            <option value="FR">Франция</option>
-                            <option value="GB">Великобритания</option>
-                            <option value="IN">Индия</option>
-                            <option value="CN">Китай</option>
-                            <option value="JP">Япония</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
                         <div class="timezone-info" id="timezoneInfo">
                             Часовой пояс будет определён автоматически по выбранному городу и стране
                         </div>
@@ -1047,30 +1029,21 @@
             }
         }
 
+        // Переменная для хранения выбранной страны (извлекается автоматически при выборе города)
+        let lastSelectedCountry = null;
+
         // Инициализация - убеждаемся, что DOM загружен
         function initApp() {
             const chartForm = document.getElementById('chartForm');
             const birthPlace = document.getElementById('birthPlace');
-            const birthCountry = document.getElementById('birthCountry');
             
-            if (!chartForm || !birthPlace || !birthCountry) {
+            if (!chartForm || !birthPlace) {
                 console.error('Не удалось найти элементы формы. Проверьте структуру HTML.');
                 return;
             }
             
             chartForm.addEventListener('submit', handleSubmit);
             birthPlace.addEventListener('input', debounce(handleCitySearch, 300));
-            birthCountry.addEventListener('change', () => {
-                // Смена страны инвалидирует ранее выбранный город/таймзону
-                lastSelectedCoords = null;
-                lastSelectedTimeZone = null;
-                lastSelectedUtcOffsetMinutes = null;
-                const timezoneInfo = document.getElementById('timezoneInfo');
-                if (timezoneInfo) {
-                    timezoneInfo.innerHTML =
-                        'Часовой пояс будет определён автоматически по выбранному городу и стране';
-                }
-            });
         }
         
         // Запускаем инициализацию после загрузки DOM
@@ -1159,7 +1132,8 @@
                 'JP': { default: 'Asia/Tokyo' }
             };
             
-            const country = document.getElementById('birthCountry').value || 'RU';
+            // Используем сохранённую страну или фолбэк
+            const country = lastSelectedCountry || 'RU';
             const countryData = timezoneMap[country];
             
             if (!countryData) {
@@ -1185,8 +1159,9 @@
             lastSelectedCoords = null;
             lastSelectedTimeZone = null;
             lastSelectedUtcOffsetMinutes = null;
+            lastSelectedCountry = null;
             document.getElementById('timezoneInfo').innerHTML =
-                'Часовой пояс будет определён автоматически по выбранному городу и стране';
+                'Часовой пояс будет определён автоматически по выбранному городу';
 
             if (query.length < 2) {
                 document.getElementById('citySuggestions').style.display = 'none';
@@ -1194,19 +1169,12 @@
             }
 
             try {
-                const country = document.getElementById('birthCountry').value || 'RU';
                 const encodedQuery = encodeURIComponent(query);
                 
                 // Используем OpenStreetMap Nominatim API (бесплатный, без регистрации)
-                const countryCodeMap = {
-                    'RU': 'ru', 'BY': 'by', 'KZ': 'kz', 'UA': 'ua',
-                    'US': 'us', 'DE': 'de', 'FR': 'fr', 'GB': 'gb',
-                    'IN': 'in', 'CN': 'cn', 'JP': 'jp'
-                };
-                const countryCode = countryCodeMap[country] || country.toLowerCase();
-                
+                // Убрали фильтрацию по стране - поиск работает глобально
                 const response = await fetch(
-                    `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&countrycodes=${countryCode}&format=json&limit=10&featuretype=city`,
+                    `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=10&featuretype=city`,
                     { headers: { 'Accept-Language': 'ru' } }
                 );
                 const data = await response.json();
@@ -1216,11 +1184,13 @@
                         const displayName = city.display_name.split(',');
                         const cityName = displayName[0] || city.name || query;
                         const region = displayName[1] ? displayName[1].trim() : '';
-                        const countryName = displayName[displayName.length - 1] ? displayName[displayName.length - 1].trim() : country;
+                        // Извлекаем код страны из ответа API
+                        const countryCode = (city.address && city.address.country_code) ? city.address.country_code.toUpperCase() : '';
+                        const countryName = displayName[displayName.length - 1] ? displayName[displayName.length - 1].trim() : '';
                         
                         return `
                             <button type="button" class="suggestion-item"
-                                    onclick="selectCity(${JSON.stringify(cityName)}, ${JSON.stringify(region)}, ${city.lat}, ${city.lon}, '${country}')">
+                                    onclick="selectCity(${JSON.stringify(cityName)}, ${JSON.stringify(region)}, ${city.lat}, ${city.lon}, ${JSON.stringify(countryCode)}, ${JSON.stringify(city)})">
                                 <div style="font-weight: 700;">${cityName}</div>
                                 <div style="color: var(--text-muted); font-size: 0.9em;">
                                     ${region ? region + ' · ' : ''}${countryName}
@@ -1241,10 +1211,17 @@
         }
 
         // Делаем selectCity доступной глобально для onclick обработчиков
-        window.selectCity = async function selectCity(name, adminName1, lat, lng, country) {
+        window.selectCity = async function selectCity(name, adminName1, lat, lng, countryCode, cityData) {
             // Проставляем читаемый формат (город + регион), чтобы было понятно, что именно выбрано
             document.getElementById('birthPlace').value = adminName1 ? `${name}, ${adminName1}` : name;
-            document.getElementById('birthCountry').value = country;
+            
+            // Сохраняем страну из ответа API
+            if (countryCode) {
+                lastSelectedCountry = countryCode;
+            } else if (cityData && cityData.address && cityData.address.country_code) {
+                lastSelectedCountry = cityData.address.country_code.toUpperCase();
+            }
+            
             document.getElementById('citySuggestions').style.display = 'none';
             
             const latNum = Number(lat);
@@ -1253,6 +1230,7 @@
                 lastSelectedCoords = null;
                 lastSelectedTimeZone = null;
                 lastSelectedUtcOffsetMinutes = null;
+                lastSelectedCountry = null;
                 document.getElementById('timezoneInfo').innerHTML =
                     `<strong>Не удалось определить координаты города.</strong> Попробуйте выбрать другой вариант из списка.`;
                 return;
@@ -1282,9 +1260,8 @@
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
-            const country = document.getElementById('birthCountry').value;
             
-            if (!userName || !birthDate || !birthTime || !birthPlace || !country) {
+            if (!userName || !birthDate || !birthTime || !birthPlace) {
                 showError('Пожалуйста, заполните все поля');
                 return;
             }
@@ -1292,9 +1269,13 @@
             // Определяем пол по имени
             const gender = classifyRussianName(userName);
             if (!lastSelectedCoords) {
-                // Если пользователь ввёл город вручную — пробуем взять координаты по GeoNames
+                // Если пользователь ввёл город вручную — пробуем взять координаты
                 try {
-                    lastSelectedCoords = await resolveCityToCoords(birthPlace, country);
+                    lastSelectedCoords = await resolveCityToCoords(birthPlace);
+                    // Если страна не была определена ранее, попробуем извлечь из результата
+                    if (!lastSelectedCountry && lastSelectedCoords) {
+                        // Страна будет определена при следующем поиске или останется null
+                    }
                 } catch (err) {
                     showError('Не удалось определить координаты города. Выберите город из подсказок.');
                     return;
@@ -1323,7 +1304,7 @@
                     date: birthDate,
                     time: birthTime,
                     place: birthPlace,
-                    country
+                    country: lastSelectedCountry || 'N/A'
                 };
                 currentChart = chartData;
                 
@@ -1350,26 +1331,25 @@
             }
         }
 
-        async function resolveCityToCoords(city, country) {
+        async function resolveCityToCoords(city) {
             // Если пользователь вставил/ввёл "Город, Регион" — берём только "Город" для поиска
             const cityName = String(city || '').split(',')[0].trim() || String(city || '').trim();
             const query = encodeURIComponent(cityName);
             
-            // Используем OpenStreetMap Nominatim API
-            const countryCodeMap = {
-                'RU': 'ru', 'BY': 'by', 'KZ': 'kz', 'UA': 'ua',
-                'US': 'us', 'DE': 'de', 'FR': 'fr', 'GB': 'gb',
-                'IN': 'in', 'CN': 'cn', 'JP': 'jp'
-            };
-            const countryCode = countryCodeMap[country] || country.toLowerCase();
-            
+            // Используем OpenStreetMap Nominatim API без фильтрации по стране
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${query}&countrycodes=${countryCode}&format=json&limit=1`,
+                `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&featuretype=city`,
                 { headers: { 'Accept-Language': 'ru' } }
             );
             const data = await response.json();
             if (!data || data.length === 0) throw new Error('City not found');
             const g = data[0];
+            
+            // Извлекаем страну из ответа API, если доступна
+            if (g.address && g.address.country_code && !lastSelectedCountry) {
+                lastSelectedCountry = g.address.country_code.toUpperCase();
+            }
+            
             return { lat: parseFloat(g.lat), lng: parseFloat(g.lon) };
         }
 
