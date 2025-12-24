@@ -879,6 +879,74 @@
             return `${sign}${hh}:${mm}`;
         }
 
+        // Определение часового пояса по координатам (приблизительно, без внешнего API)
+        function getTimezoneFromCoords(lat, lng) {
+            // Упрощённая формула: часовой пояс ≈ долгота / 15
+            // Для более точного определения используем известные города
+            const offset = Math.round(lng / 15);
+            
+            // Стандартные IANA таймзоны для основных регионов
+            const timezoneMap = {
+                'RU': { // Россия - несколько зон
+                    default: 'Europe/Moscow',
+                    zones: [
+                        { minLng: 20, maxLng: 45, tz: 'Europe/Moscow' },
+                        { minLng: 45, maxLng: 60, tz: 'Asia/Yekaterinburg' },
+                        { minLng: 60, maxLng: 75, tz: 'Asia/Omsk' },
+                        { minLng: 75, maxLng: 90, tz: 'Asia/Krasnoyarsk' },
+                        { minLng: 90, maxLng: 105, tz: 'Asia/Irkutsk' },
+                        { minLng: 105, maxLng: 120, tz: 'Asia/Yakutsk' },
+                        { minLng: 120, maxLng: 135, tz: 'Asia/Vladivostok' },
+                        { minLng: 135, maxLng: 150, tz: 'Asia/Magadan' },
+                        { minLng: 150, maxLng: 180, tz: 'Asia/Kamchatka' }
+                    ]
+                },
+                'BY': { default: 'Europe/Minsk' },
+                'KZ': { 
+                    default: 'Asia/Almaty',
+                    zones: [
+                        { minLng: 45, maxLng: 60, tz: 'Asia/Aqtobe' },
+                        { minLng: 60, maxLng: 90, tz: 'Asia/Almaty' }
+                    ]
+                },
+                'UA': { default: 'Europe/Kiev' },
+                'US': { 
+                    default: 'America/New_York',
+                    zones: [
+                        { minLng: -130, maxLng: -115, tz: 'America/Los_Angeles' },
+                        { minLng: -115, maxLng: -100, tz: 'America/Denver' },
+                        { minLng: -100, maxLng: -85, tz: 'America/Chicago' },
+                        { minLng: -85, maxLng: -60, tz: 'America/New_York' }
+                    ]
+                },
+                'DE': { default: 'Europe/Berlin' },
+                'FR': { default: 'Europe/Paris' },
+                'GB': { default: 'Europe/London' },
+                'IN': { default: 'Asia/Kolkata' },
+                'CN': { default: 'Asia/Shanghai' },
+                'JP': { default: 'Asia/Tokyo' }
+            };
+            
+            const country = document.getElementById('birthCountry').value || 'RU';
+            const countryData = timezoneMap[country];
+            
+            if (!countryData) {
+                // Фолбэк: Etc/GMT+offset
+                const sign = offset >= 0 ? '-' : '+';
+                return `Etc/GMT${sign}${Math.abs(offset)}`;
+            }
+            
+            if (countryData.zones) {
+                for (const zone of countryData.zones) {
+                    if (lng >= zone.minLng && lng < zone.maxLng) {
+                        return zone.tz;
+                    }
+                }
+            }
+            
+            return countryData.default;
+        }
+
         async function handleCitySearch(e) {
             const query = e.target.value;
             // Любое ручное редактирование поля сбрасывает выбранные координаты/таймзону
@@ -896,21 +964,38 @@
             try {
                 const country = document.getElementById('birthCountry').value || 'RU';
                 const encodedQuery = encodeURIComponent(query);
+                
+                // Используем OpenStreetMap Nominatim API (бесплатный, без регистрации)
+                const countryCodeMap = {
+                    'RU': 'ru', 'BY': 'by', 'KZ': 'kz', 'UA': 'ua',
+                    'US': 'us', 'DE': 'de', 'FR': 'fr', 'GB': 'gb',
+                    'IN': 'in', 'CN': 'cn', 'JP': 'jp'
+                };
+                const countryCode = countryCodeMap[country] || country.toLowerCase();
+                
                 const response = await fetch(
-                    `https://secure.geonames.org/searchJSON?name_startsWith=${encodedQuery}&country=${country}&featureClass=P&maxRows=10&username=demo`
+                    `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&countrycodes=${countryCode}&format=json&limit=10&featuretype=city`,
+                    { headers: { 'Accept-Language': 'ru' } }
                 );
                 const data = await response.json();
                 
-                if (data.geonames && data.geonames.length > 0) {
-                    const suggestions = data.geonames.map(city => `
-                        <button type="button" class="suggestion-item"
-                                onclick="selectCity(${JSON.stringify(city.name)}, ${JSON.stringify(city.adminName1 || '')}, ${city.lat}, ${city.lng}, '${city.countryCode}')">
-                            <div style="font-weight: 700;">${city.name}</div>
-                            <div style="color: var(--text-muted); font-size: 0.9em;">
-                                ${(city.adminName1 ? city.adminName1 + ' · ' : '')}${city.countryCode}
-                            </div>
-                        </button>
-                    `).join('');
+                if (data && data.length > 0) {
+                    const suggestions = data.map(city => {
+                        const displayName = city.display_name.split(',');
+                        const cityName = displayName[0] || city.name || query;
+                        const region = displayName[1] ? displayName[1].trim() : '';
+                        const countryName = displayName[displayName.length - 1] ? displayName[displayName.length - 1].trim() : country;
+                        
+                        return `
+                            <button type="button" class="suggestion-item"
+                                    onclick="selectCity(${JSON.stringify(cityName)}, ${JSON.stringify(region)}, ${city.lat}, ${city.lon}, '${country}')">
+                                <div style="font-weight: 700;">${cityName}</div>
+                                <div style="color: var(--text-muted); font-size: 0.9em;">
+                                    ${region ? region + ' · ' : ''}${countryName}
+                                </div>
+                            </button>
+                        `;
+                    }).join('');
                     
                     document.getElementById('citySuggestions').innerHTML = suggestions;
                     document.getElementById('citySuggestions').style.display = 'block';
@@ -919,6 +1004,7 @@
                 }
             } catch (error) {
                 console.error('Ошибка поиска города:', error);
+                document.getElementById('citySuggestions').style.display = 'none';
             }
         }
 
@@ -940,34 +1026,20 @@
             }
 
             lastSelectedCoords = { lat: latNum, lng: lngNum };
-            try {
-                await getTimezone(latNum, lngNum);
-            } catch (err) {
-                document.getElementById('timezoneInfo').innerHTML =
-                    `<strong>Не удалось определить часовой пояс автоматически.</strong> Попробуйте выбрать другой вариант из списка.`;
-            }
+            
+            // Определяем часовой пояс по координатам (без внешнего API)
+            const tz = getTimezoneFromCoords(latNum, lngNum);
+            lastSelectedTimeZone = tz;
+            updateTimezoneInfoForCurrentInputs();
         }
 
         async function getTimezone(lat, lng) {
-            try {
-                document.getElementById('timezoneInfo').innerHTML = `Определяем часовой пояс...`;
-
-                // GeoNames timezone endpoint (без отдельного ключа; используется тот же username)
-                const response = await fetch(
-                    `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
-                );
-                const data = await response.json();
-                const tz = data.timezoneId;
-                if (!tz) throw new Error('Timezone not found');
-                lastSelectedTimeZone = tz;
-                updateTimezoneInfoForCurrentInputs();
-
-                return tz;
-            } catch (error) {
-                lastSelectedTimeZone = null;
-                lastSelectedUtcOffsetMinutes = null;
-                throw error;
-            }
+            // Используем локальное определение часового пояса по координатам
+            const tz = getTimezoneFromCoords(lat, lng);
+            if (!tz) throw new Error('Timezone not found');
+            lastSelectedTimeZone = tz;
+            updateTimezoneInfoForCurrentInputs();
+            return tz;
         }
 
         async function handleSubmit(e) {
@@ -1043,13 +1115,23 @@
             // Если пользователь вставил/ввёл "Город, Регион" — берём только "Город" для поиска
             const cityName = String(city || '').split(',')[0].trim() || String(city || '').trim();
             const query = encodeURIComponent(cityName);
+            
+            // Используем OpenStreetMap Nominatim API
+            const countryCodeMap = {
+                'RU': 'ru', 'BY': 'by', 'KZ': 'kz', 'UA': 'ua',
+                'US': 'us', 'DE': 'de', 'FR': 'fr', 'GB': 'gb',
+                'IN': 'in', 'CN': 'cn', 'JP': 'jp'
+            };
+            const countryCode = countryCodeMap[country] || country.toLowerCase();
+            
             const response = await fetch(
-                `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=1&username=demo`
+                `https://nominatim.openstreetmap.org/search?q=${query}&countrycodes=${countryCode}&format=json&limit=1`,
+                { headers: { 'Accept-Language': 'ru' } }
             );
             const data = await response.json();
-            if (!data.geonames || data.geonames.length === 0) throw new Error('City not found');
-            const g = data.geonames[0];
-            return { lat: parseFloat(g.lat), lng: parseFloat(g.lng) };
+            if (!data || data.length === 0) throw new Error('City not found');
+            const g = data[0];
+            return { lat: parseFloat(g.lat), lng: parseFloat(g.lon) };
         }
 
         function normalize360(deg) {
