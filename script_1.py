@@ -702,6 +702,11 @@ html_code = '''
             </div>
 
             <div class="result-card">
+                <h3>📈 Сила и гармония</h3>
+                <div id="strengthHarmony"></div>
+            </div>
+
+            <div class="result-card">
                 <h3>🎯 Интерпретация</h3>
                 <div id="interpretation"></div>
             </div>
@@ -765,6 +770,9 @@ html_code = '''
             </div>
         </div>
     </div>
+
+    <!-- Astronomy Engine: точные положения планет/Луны/Солнца (геоцентрически) -->
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.min.js"></script>
 
     <script>
         const PLANETS_EN = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
@@ -930,18 +938,29 @@ html_code = '''
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
+            const timezone = (document.getElementById('timezone').value || '').trim();
             
-            if (!birthDate || !birthTime || !birthPlace) {
-                showError('Пожалуйста, заполните все поля');
+            if (!birthDate || !birthTime || !birthPlace || !timezone) {
+                showError('Пожалуйста, заполните все поля (включая часовой пояс)');
                 return;
+            }
+            if (!lastSelectedCoords) {
+                // Если пользователь ввёл город вручную — пробуем взять координаты по GeoNames
+                try {
+                    const country = document.getElementById('birthCountry').value || 'RU';
+                    lastSelectedCoords = await resolveCityToCoords(birthPlace, country);
+                } catch (err) {
+                    showError('Не удалось определить координаты города. Выберите город из подсказок.');
+                    return;
+                }
             }
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('errorMessage').style.display = 'none';
 
             try {
-                // Симуляция расчётов натальной карты с реальными астрологическими формулами
-                const chartData = calculateNatalChart(birthDate, birthTime, birthPlace);
+                // Точный расчёт: UTC по IANA TZ + координаты + реальные положения небесных тел
+                const chartData = calculateNatalChart(birthDate, birthTime, timezone, lastSelectedCoords.lat, lastSelectedCoords.lng);
                 currentChart = chartData;
                 
                 displayChart(chartData);
@@ -959,66 +978,318 @@ html_code = '''
             }
         }
 
-        function calculateNatalChart(dateStr, timeStr, place) {
-            const date = new Date(dateStr + 'T' + timeStr);
-            
-            // Вычисляем юлианское число (упрощённо)
-            const jd = getJulianDay(date);
-            
-            // Вычисляем положение планет (симуляция)
-            const planets = {};
-            PLANETS_EN.forEach((planet, index) => {
-                const longitude = (jd * 0.985647 + index * 25.5 + Math.random() * 30) % 360;
-                planets[planet] = {
-                    longitude: longitude,
-                    sign: Math.floor(longitude / 30),
-                    degree: longitude % 30,
-                    latitude: (Math.random() - 0.5) * 5,
-                    speed: (Math.random() - 0.5) * 2 + (index === 0 ? 1 : 0)
-                };
+        async function resolveCityToCoords(city, country) {
+            const query = encodeURIComponent(city);
+            const response = await fetch(
+                `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=1&username=demo`
+            );
+            const data = await response.json();
+            if (!data.geonames || data.geonames.length === 0) throw new Error('City not found');
+            const g = data.geonames[0];
+            return { lat: parseFloat(g.lat), lng: parseFloat(g.lng) };
+        }
+
+        function normalize360(deg) {
+            let x = deg % 360;
+            if (x < 0) x += 360;
+            return x;
+        }
+
+        function angleDiffDegrees(toDeg, fromDeg) {
+            // Возвращает разницу углов (to-from) в диапазоне [-180; +180]
+            let d = (toDeg - fromDeg) % 360;
+            if (d > 180) d -= 360;
+            if (d < -180) d += 360;
+            return d;
+        }
+
+        function atan2d(y, x) {
+            return normalize360(Math.atan2(y, x) * 180 / Math.PI);
+        }
+
+        function getTimeZoneOffsetMinutes(dateUtcInstant, timeZone) {
+            // dateUtcInstant — Date, интерпретируется как реальный UTC момент времени
+            const dtf = new Intl.DateTimeFormat('en-US', {
+                timeZone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
             });
+            const parts = dtf.formatToParts(dateUtcInstant);
+            const map = {};
+            for (const p of parts) map[p.type] = p.value;
+            const asUtcMillis = Date.UTC(
+                parseInt(map.year, 10),
+                parseInt(map.month, 10) - 1,
+                parseInt(map.day, 10),
+                parseInt(map.hour, 10),
+                parseInt(map.minute, 10),
+                parseInt(map.second, 10)
+            );
+            // offset = (zoned-as-utc) - (real-utc)
+            return (asUtcMillis - dateUtcInstant.getTime()) / 60000;
+        }
 
-            // Асцендент (симуляция)
-            const ascendant = (jd * 360 + Math.random() * 30) % 360;
-            const ascendantSign = Math.floor(ascendant / 30);
+        function zonedDateTimeToUtcDate(dateStr, timeStr, timeZone) {
+            const [y, m, d] = dateStr.split('-').map(v => parseInt(v, 10));
+            const [hh, mm] = timeStr.split(':').map(v => parseInt(v, 10));
+            // Берём "догадку" как если бы это был UTC
+            const guessUtc = new Date(Date.UTC(y, m - 1, d, hh, mm, 0));
+            let offset = getTimeZoneOffsetMinutes(guessUtc, timeZone);
+            let utc = new Date(guessUtc.getTime() - offset * 60000);
+            // второй проход на случай перехода DST
+            const offset2 = getTimeZoneOffsetMinutes(utc, timeZone);
+            if (offset2 !== offset) {
+                offset = offset2;
+                utc = new Date(guessUtc.getTime() - offset * 60000);
+            }
+            return utc;
+        }
 
-            // МС (Середина неба)
-            const mc = (ascendant + 90) % 360;
-            const mcSign = Math.floor(mc / 30);
+        function calcMcLongitude(lstDeg, epsDeg) {
+            const theta = lstDeg * Math.PI / 180;
+            const eps = epsDeg * Math.PI / 180;
+            return atan2d(Math.sin(theta), Math.cos(theta) * Math.cos(eps));
+        }
 
-            // Дома (система Плацидуса - упрощённо)
-            const houses = [];
-            for (let i = 0; i < 12; i++) {
-                houses[i] = (ascendant + i * 30) % 360;
+        function calcAscLongitude(lstDeg, latDeg, epsDeg) {
+            const theta = lstDeg * Math.PI / 180;
+            const phi = latDeg * Math.PI / 180;
+            const eps = epsDeg * Math.PI / 180;
+            // Формула для тропического Асцендента (геометрия горизонта/эклиптики)
+            const raw = atan2d(
+                -Math.cos(theta),
+                Math.sin(theta) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps)
+            );
+            return normalize360(raw + 180);
+        }
+
+        function eclLonToRaDec(lonDeg, epsDeg) {
+            // эклиптическая широта = 0 (точка на эклиптике), координаты эпохи даты
+            const lon = lonDeg * Math.PI / 180;
+            const eps = epsDeg * Math.PI / 180;
+
+            const x = Math.cos(lon);
+            const y = Math.sin(lon) * Math.cos(eps);
+            const z = Math.sin(lon) * Math.sin(eps);
+
+            const ra = atan2d(y, x); // 0..360
+            const dec = Math.atan2(z, Math.hypot(x, y)) * 180 / Math.PI;
+            return { raDeg: ra, decDeg: dec };
+        }
+
+        function isOnArc(lon, start, end) {
+            const arcLen = normalize360(end - start);
+            const d = normalize360(lon - start);
+            return d < arcLen;
+        }
+
+        function placidusTargetHourAngleDeg(houseNumber, h0Deg) {
+            switch (houseNumber) {
+                // Верхняя полусфера (MC -> Asc)
+                case 11: return -h0Deg / 3;
+                case 12: return -2 * h0Deg / 3;
+                // Нижняя полусфера (Asc -> IC)
+                case 2:  return -60 - 2 * h0Deg / 3;
+                case 3:  return -120 - h0Deg / 3;
+                // Нижняя полусфера (IC -> Desc)
+                case 5:  return 120 + h0Deg / 3;
+                case 6:  return 60 + 2 * h0Deg / 3;
+                // Верхняя полусфера (Desc -> MC)
+                case 8:  return 2 * h0Deg / 3;
+                case 9:  return h0Deg / 3;
+                default:
+                    throw new Error('Unsupported Placidus house: ' + houseNumber);
+            }
+        }
+
+        function placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, houseNumber, arcStart, arcEnd) {
+            const phi = latDeg * Math.PI / 180;
+
+            function F(lonDeg) {
+                const { raDeg, decDeg } = eclLonToRaDec(lonDeg, epsDeg);
+                const dec = decDeg * Math.PI / 180;
+
+                // часовой угол H = LST - RA (в градусах, [-180..180])
+                const H = angleDiffDegrees(lstDeg, raDeg);
+
+                // полу-дуга (полудиурнальная): cos(H0) = -tan(phi) * tan(dec)
+                let cosH0 = -Math.tan(phi) * Math.tan(dec);
+                if (cosH0 > 1) cosH0 = 1;
+                if (cosH0 < -1) cosH0 = -1;
+                const h0Deg = Math.acos(cosH0) * 180 / Math.PI;
+
+                const target = placidusTargetHourAngleDeg(houseNumber, h0Deg);
+                return H - target;
             }
 
-            // Аспекты
+            // 1) грубый поиск по дуге, выбираем минимум |F|
+            let bestLon = null;
+            let bestAbs = Infinity;
+            for (let lon = 0; lon < 360; lon += 1) {
+                if (!isOnArc(lon, arcStart, arcEnd)) continue;
+                const v = F(lon);
+                const a = Math.abs(v);
+                if (a < bestAbs) {
+                    bestAbs = a;
+                    bestLon = lon;
+                }
+            }
+            if (bestLon === null) throw new Error('Placidus cusp search failed for house ' + houseNumber);
+
+            // 2) уточнение (локальный Ньютон/секущая)
+            let lon = bestLon;
+            for (let iter = 0; iter < 20; iter++) {
+                const v = F(lon);
+                if (Math.abs(v) < 1e-6) break;
+
+                const eps = 0.05; // градусы
+                const v1 = F(normalize360(lon + eps));
+                const v2 = F(normalize360(lon - eps));
+                const dv = (v1 - v2) / (2 * eps);
+                if (!Number.isFinite(dv) || Math.abs(dv) < 1e-6) break;
+
+                let step = v / dv;
+                if (step > 5) step = 5;
+                if (step < -5) step = -5;
+                lon = normalize360(lon - step);
+
+                // удерживаем в нужной дуге
+                if (!isOnArc(lon, arcStart, arcEnd)) {
+                    // возвращаем к ближайшей точке дуги грубо
+                    lon = bestLon;
+                    break;
+                }
+            }
+            return normalize360(lon);
+        }
+
+        function buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) {
+            // Возвращает 12 куспов (1..12) в градусах тропического зодиака
+            const cusps = new Array(12);
+            const asc = normalize360(ascDeg);
+            const mc = normalize360(mcDeg);
+            const desc = normalize360(asc + 180);
+            const ic = normalize360(mc + 180);
+
+            // углы
+            cusps[0] = asc;  // 1
+            cusps[3] = ic;   // 4
+            cusps[6] = desc; // 7
+            cusps[9] = mc;   // 10
+
+            // дуги квадрантов
+            const arcMCtoAsc = { start: mc, end: asc };
+            const arcAsctoIC = { start: asc, end: ic };
+            const arcICtoDesc = { start: ic, end: desc };
+            const arcDesctoMC = { start: desc, end: mc };
+
+            cusps[10] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 11, arcMCtoAsc.start, arcMCtoAsc.end); // 11
+            cusps[11] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 12, arcMCtoAsc.start, arcMCtoAsc.end); // 12
+
+            cusps[1] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 2, arcAsctoIC.start, arcAsctoIC.end);   // 2
+            cusps[2] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 3, arcAsctoIC.start, arcAsctoIC.end);   // 3
+
+            cusps[4] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 5, arcICtoDesc.start, arcICtoDesc.end); // 5
+            cusps[5] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 6, arcICtoDesc.start, arcICtoDesc.end); // 6
+
+            cusps[7] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 8, arcDesctoMC.start, arcDesctoMC.end); // 8
+            cusps[8] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 9, arcDesctoMC.start, arcDesctoMC.end); // 9
+
+            return cusps;
+        }
+
+        function getHouseIndex(planetLon, houseCusps) {
+            // houseCusps: 12 углов (1..12) в градусах, порядок домов
+            for (let i = 0; i < 12; i++) {
+                const start = houseCusps[i];
+                const end = houseCusps[(i + 1) % 12];
+                let span = normalize360(end - start);
+                if (span === 0) span = 360;
+                const d = normalize360(planetLon - start);
+                if (d < span) return i + 1;
+            }
+            return 1;
+        }
+
+        function calculateNatalChart(dateStr, timeStr, timeZone, latDeg, lonDeg) {
+            if (!window.Astronomy) throw new Error('Не удалось загрузить Astronomy Engine (проверьте интернет/блокировщики).');
+
+            // UTC момент по указанному часовому поясу (IANA), учитывая DST
+            const utcDate = zonedDateTimeToUtcDate(dateStr, timeStr, timeZone);
+            const time = new Astronomy.AstroTime(utcDate);
+
+            // Сидерическое время в Гринвиче (часы) -> локальное (градусы)
+            const gstHours = Astronomy.SiderealTime(time); // 0..24
+            const lstHours = (gstHours + lonDeg / 15) % 24;
+            const lstDeg = normalize360(lstHours * 15);
+
+            // Наклон эклиптики (истинный)
+            const epsDeg = Astronomy.e_tilt(time).tobl;
+
+            // Asc / MC
+            const ascendant = calcAscLongitude(lstDeg, latDeg, epsDeg);
+            const mc = calcMcLongitude(lstDeg, epsDeg);
+
+            // Дома: Плацидус (реальная система домов, зависит от координат/времени)
+            const houses = buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascendant, mc);
+
+            const bodyMap = {
+                sun: Astronomy.Body.Sun,
+                moon: Astronomy.Body.Moon,
+                mercury: Astronomy.Body.Mercury,
+                venus: Astronomy.Body.Venus,
+                mars: Astronomy.Body.Mars,
+                jupiter: Astronomy.Body.Jupiter,
+                saturn: Astronomy.Body.Saturn,
+                uranus: Astronomy.Body.Uranus,
+                neptune: Astronomy.Body.Neptune,
+                pluto: Astronomy.Body.Pluto
+            };
+
+            // Планеты (геоцентрические эклиптические координаты)
+            const planets = {};
+            for (const name of PLANETS_EN) {
+                const body = bodyMap[name];
+                const vec0 = Astronomy.GeoVector(body, time, true);
+                const ecl0 = Astronomy.Ecliptic(vec0);
+                const lon0 = normalize360(ecl0.elon);
+
+                const t1 = time.AddDays(1);
+                const vec1 = Astronomy.GeoVector(body, t1, true);
+                const ecl1 = Astronomy.Ecliptic(vec1);
+                const lon1 = normalize360(ecl1.elon);
+
+                const speed = angleDiffDegrees(lon1, lon0); // °/день (с учётом ретроградности)
+
+                planets[name] = {
+                    longitude: lon0,
+                    sign: Math.floor(lon0 / 30),
+                    degree: lon0 % 30,
+                    latitude: ecl0.elat,
+                    speed: speed,
+                    house: getHouseIndex(lon0, houses)
+                };
+            }
+
             const aspects = calculateAspects(planets);
 
             return {
-                date: date,
-                planets: planets,
-                ascendant: ascendant,
-                ascendantSign: ascendantSign,
-                mc: mc,
-                mcSign: mcSign,
-                houses: houses,
-                aspects: aspects
+                dateUTC: utcDate,
+                timeZone,
+                location: { lat: latDeg, lng: lonDeg },
+                planets,
+                ascendant,
+                ascendantSign: Math.floor(ascendant / 30),
+                mc,
+                mcSign: Math.floor(mc / 30),
+                houses,
+                aspects
             };
-        }
-
-        function getJulianDay(date) {
-            const a = Math.floor((14 - (date.getMonth() + 1)) / 12);
-            const y = date.getFullYear() + 4800 - a;
-            const m = (date.getMonth() + 1) + 12 * a - 3;
-            
-            const jdn = date.getDate() + Math.floor((153 * m + 2) / 5) + 365 * y + 
-                        Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
-            
-            const jd = jdn + (date.getHours() - 12) / 24 + date.getMinutes() / 1440 + 
-                       date.getSeconds() / 86400;
-            
-            return jd;
         }
 
         function calculateAspects(planets) {
@@ -1044,6 +1315,8 @@ html_code = '''
 
                     for (const asp of aspectTypes) {
                         if (Math.abs(angle - asp.angle) < orbs) {
+                            const orb = Math.abs(angle - asp.angle);
+                            const strength = Math.max(0, (1 - orb / orbs)) * 100; // 0..100
                             aspects.push({
                                 planet1: name1,
                                 planet2: name2,
@@ -1051,7 +1324,9 @@ html_code = '''
                                 name: asp.name,
                                 symbol: asp.symbol,
                                 type: asp.type,
-                                orb: Math.abs(angle - asp.angle).toFixed(1)
+                                orb: orb,
+                                strength: strength,
+                                harmony: asp.type === 'гармоничный' ? +1 : -1
                             });
                             break;
                         }
@@ -1060,6 +1335,41 @@ html_code = '''
             }
             
             return aspects;
+        }
+
+        function computePlanetStrength(planets, ascDeg, mcDeg) {
+            const descDeg = normalize360(ascDeg + 180);
+            const icDeg = normalize360(mcDeg + 180);
+            const angles = [ascDeg, mcDeg, descDeg, icDeg];
+
+            const out = [];
+            for (const [name, p] of Object.entries(planets)) {
+                let minDist = Infinity;
+                for (const a of angles) {
+                    const d = Math.abs(angleDiffDegrees(p.longitude, a));
+                    if (d < minDist) minDist = d;
+                }
+                // 0° от угла => 100, 90° => 0
+                let strength = Math.max(0, 100 - (minDist / 90) * 100);
+                if (p.speed < 0) strength = Math.max(0, strength - 5); // лёгкий штраф за ретроградность
+                out.push({ name, strength, minDist });
+            }
+            out.sort((a, b) => b.strength - a.strength);
+            return out;
+        }
+
+        function computeHarmonyIndex(aspects) {
+            if (!aspects || aspects.length === 0) return 50;
+            let signed = 0;
+            let total = 0;
+            for (const a of aspects) {
+                const s = Math.max(0, Math.min(100, a.strength || 0));
+                signed += (a.harmony || 0) * s;
+                total += s;
+            }
+            if (total <= 0) return 50;
+            // signed в [-total..+total] -> [0..100]
+            return Math.max(0, Math.min(100, ((signed / total) + 1) * 50));
         }
 
         function displayChart(chartData) {
@@ -1137,8 +1447,8 @@ html_code = '''
             ctx.fillText('Asc', ascX, ascY);
 
             document.getElementById('ascendentValue').textContent = 
-                ZODIAC_RU[chartData.ascendantSign] + ' ' + 
-                ZODIAC_SYMBOLS[chartData.ascendantSign];
+                `${ZODIAC_RU[chartData.ascendantSign]} ${ZODIAC_SYMBOLS[chartData.ascendantSign]} ` +
+                `${(chartData.ascendant % 30).toFixed(1)}°`;
         }
 
         function displayResults(chartData) {
@@ -1163,13 +1473,12 @@ html_code = '''
             // Планеты в домах
             let housesHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
                 housesHtml += `
                     <div class="planet-row">
                         <div class="planet-symbol">●</div>
                         <div class="planet-info">
                             <div class="planet-name">${PLANETS_RU[name]}</div>
-                            <div class="planet-position">Дом ${house}</div>
+                            <div class="planet-position">Дом ${data.house}</div>
                         </div>
                         <div class="degree-value"></div>
                     </div>
@@ -1180,28 +1489,63 @@ html_code = '''
             // Аспекты
             let aspectsHtml = '';
             chartData.aspects.slice(0, 10).forEach(aspect => {
+                const strength = (aspect.strength ?? 0).toFixed(0);
                 aspectsHtml += `
                     <div class="aspect-item">
                         <div class="aspect-header">
                             <span>${PLANETS_RU[aspect.planet1]} ${aspect.symbol} ${PLANETS_RU[aspect.planet2]}</span>
                             <span class="aspect-type">${aspect.name}</span>
                         </div>
-                        <div class="aspect-description">Орб: ${aspect.orb}°</div>
+                        <div class="aspect-description">Орб: ${aspect.orb.toFixed(1)}° · Сила: ${strength}% · ${aspect.type}</div>
                     </div>
                 `;
             });
             document.getElementById('aspectsList').innerHTML = aspectsHtml;
 
+            // Сила и гармония
+            const harmonyIndex = computeHarmonyIndex(chartData.aspects);
+            const planetStrength = computePlanetStrength(chartData.planets, chartData.ascendant, chartData.mc);
+            const topPlanets = planetStrength.slice(0, 3).map(p => `${PLANETS_RU[p.name]} (${p.strength.toFixed(0)}%)`).join(', ');
+            const bestAspect = [...chartData.aspects].sort((a, b) => (b.strength - a.strength))[0];
+            const harmonyText = harmonyIndex >= 60 ? 'гармоничная' : (harmonyIndex <= 40 ? 'напряжённая' : 'сбалансированная');
+
+            document.getElementById('strengthHarmony').innerHTML = `
+                <div style="margin-bottom: 10px; color: var(--text-muted);">
+                    <strong style="color: var(--accent);">Система домов:</strong> Плацидус
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: var(--accent);">Индекс гармонии:</strong> ${harmonyIndex.toFixed(0)}/100
+                    <span style="color: var(--text-muted);">(${harmonyText})</span>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: var(--accent);">Самые сильные планеты:</strong>
+                    <span style="color: var(--text);">${topPlanets || '-'}</span>
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.9em;">
+                    ${bestAspect ? `Сильнейший аспект: ${PLANETS_RU[bestAspect.planet1]} ${bestAspect.symbol} ${PLANETS_RU[bestAspect.planet2]} (${bestAspect.name}, ${bestAspect.strength.toFixed(0)}%)` : 'Аспекты не найдены'}
+                </div>
+            `;
+
+            // Интерпретация (техническая справка: время/координаты)
+            const { lat, lng } = chartData.location || {};
+            document.getElementById('interpretation').innerHTML = `
+                <div style="color: var(--text-muted); line-height: 1.6;">
+                    <div><strong style="color: var(--accent);">UTC:</strong> ${chartData.dateUTC ? new Date(chartData.dateUTC).toISOString().replace('.000Z','Z') : '-'}</div>
+                    <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${chartData.timeZone || '-'}</div>
+                    <div><strong style="color: var(--accent);">Координаты:</strong> ${Number.isFinite(lat) ? lat.toFixed(4) : '-'}, ${Number.isFinite(lng) ? lng.toFixed(4) : '-'}</div>
+                    <div><strong style="color: var(--accent);">Дома:</strong> Плацидус</div>
+                </div>
+            `;
+
             // Таблица
             let tableHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
                 tableHtml += `
                     <tr>
                         <td>${PLANETS_RU[name]}</td>
                         <td>${ZODIAC_RU[data.sign]}</td>
                         <td>${data.degree.toFixed(1)}°</td>
-                        <td>${house}</td>
+                        <td>${data.house}</td>
                         <td>${data.speed > 0 ? '+' : ''}${data.speed.toFixed(2)}°/день</td>
                     </tr>
                 `;
