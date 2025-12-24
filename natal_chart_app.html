@@ -1433,9 +1433,10 @@
             const mc = calculateMidheaven(utcDate, coords.lng);
             const mcSign = Math.floor(mc / 30);
 
-            // Дома: равнодомная система от Асцендента (детерминировано и согласовано с координатами/временем).
-            // При необходимости можно заменить на Плацидус.
-            const houses = Array.from({ length: 12 }, (_, i) => normalize360(ascendant + i * 30));
+            // Дома: система Плацидуса (Placidus).
+            // Важно: для широт близких к полярным кругам Плацидус может быть неустойчив —
+            // в таких случаях применяется фолбэк на порфирий (деление квадрантов по дуге).
+            const houses = calculateHousesPlacidus(utcDate, coords.lat, coords.lng, ascendant, mc);
 
             const aspects = calculateAspects(planets);
             const chartRuler = getChartRulerByAscendant(ascendantSign);
@@ -1521,6 +1522,246 @@
                 // Fallback: упрощенный расчет
                 return normalize360((new Date(utcDate).getTime() / 1000 / 3600 / 24 + 90) % 360);
             }
+        }
+
+        function clamp(x, min, max) {
+            return Math.min(max, Math.max(min, x));
+        }
+
+        // Простейшая система Порфирия: деление дуг квадрантов на 3 равные части.
+        // Используем как безопасный фолбэк, если Плацидус "ломается" (высокие широты).
+        function calculateHousesPorphyry(ascendant, mc) {
+            const asc = normalize360(ascendant);
+            const mcLon = normalize360(mc);
+            const desc = normalize360(asc + 180);
+            const ic = normalize360(mcLon + 180);
+
+            const arc = (from, to) => normalize360(to - from);
+            const q1 = arc(asc, ic);     // 1→4: дома 2 и 3
+            const q2 = arc(ic, desc);    // 4→7: дома 5 и 6
+            const q3 = arc(desc, mcLon); // 7→10: дома 8 и 9
+            const q4 = arc(mcLon, asc);  // 10→1: дома 11 и 12
+
+            const c1 = asc;
+            const c2 = normalize360(asc + q1 / 3);
+            const c3 = normalize360(asc + 2 * q1 / 3);
+            const c4 = ic;
+            const c5 = normalize360(ic + q2 / 3);
+            const c6 = normalize360(ic + 2 * q2 / 3);
+            const c7 = desc;
+            const c8 = normalize360(desc + q3 / 3);
+            const c9 = normalize360(desc + 2 * q3 / 3);
+            const c10 = mcLon;
+            const c11 = normalize360(mcLon + q4 / 3);
+            const c12 = normalize360(mcLon + 2 * q4 / 3);
+
+            return [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12];
+        }
+
+        // Плацидус: численное решение для куспидов 2/3/11/12.
+        // В основе: трисекция (по времени) полу-дуг дневного/ночного движения.
+        function calculateHousesPlacidus(utcDate, latDeg, lngDeg, ascendant, mc) {
+            const time = Astronomy.MakeTime(utcDate);
+            const gastHours = Astronomy.SiderealTime(time); // Greenwich apparent sidereal time (hours)
+            const thetaDeg = normalize360(gastHours * 15 + lngDeg); // local sidereal angle (deg)
+            const tilt = Astronomy.e_tilt(time);
+            const epsRad = (Number(tilt.obliquity || tilt.obl || tilt.tobl || 23.44) * Math.PI / 180);
+            const latRad = Number(latDeg) * Math.PI / 180;
+
+            // Плацидус плохо определён на высоких широтах/для циркумполярных участков:
+            // сразу уходим в фолбэк, чтобы не ломать UX.
+            if (!Number.isFinite(latRad) || Math.abs(latDeg) > 66.0) {
+                return calculateHousesPorphyry(ascendant, mc);
+            }
+
+            const asc = normalize360(ascendant);
+            const mcLon = normalize360(mc);
+            const desc = normalize360(asc + 180);
+            const ic = normalize360(mcLon + 180);
+
+            const arc = (from, to) => normalize360(to - from);
+            const q1 = arc(asc, ic);
+            const q4 = arc(mcLon, asc);
+
+            // Стартовые приближения берём из Порфирия (устойчивое и близкое по геометрии).
+            const guess2 = asc + q1 / 3;
+            const guess3 = asc + 2 * q1 / 3;
+            const guess11 = mcLon + q4 / 3;
+            const guess12 = mcLon + 2 * q4 / 3;
+
+            function eclipticRaDec(lambdaDeg) {
+                const lam = normalize360(lambdaDeg) * Math.PI / 180;
+                const sinLam = Math.sin(lam);
+                const cosLam = Math.cos(lam);
+                const sinEps = Math.sin(epsRad);
+                const cosEps = Math.cos(epsRad);
+                const ra = Math.atan2(sinLam * cosEps, cosLam) * 180 / Math.PI;
+                const dec = Math.asin(sinEps * sinLam);
+                return { raDeg: normalize360(ra), decRad: dec };
+            }
+
+            function semidiurnalArcDeg(decRad) {
+                const cosH0 = -Math.tan(latRad) * Math.tan(decRad);
+                // Если |cosH0|>1 — точка циркумполярна; Плацидус тогда неустойчив.
+                if (cosH0 > 1.00001 || cosH0 < -1.00001) return null;
+                return Math.acos(clamp(cosH0, -1, 1)) * 180 / Math.PI; // 0..180
+            }
+
+            // evalFn возвращает signed error в градусах (-180..180], корень = 0.
+            function makeEvalUpper(k) {
+                return (lambda) => {
+                    const { raDeg, decRad } = eclipticRaDec(lambda);
+                    const A = semidiurnalArcDeg(decRad);
+                    if (A === null) return NaN;
+                    const H = normalize180(thetaDeg - raDeg);
+                    const target = -(k * A / 3);
+                    return normalize180(H - target);
+                };
+            }
+
+            function makeEvalLower(k) {
+                const thetaIC = normalize360(thetaDeg + 180);
+                return (lambda) => {
+                    const { raDeg, decRad } = eclipticRaDec(lambda);
+                    const A = semidiurnalArcDeg(decRad);
+                    if (A === null) return NaN;
+                    const H = normalize180(thetaIC - raDeg);
+                    const target = -(k * (180 - A) / 3);
+                    return normalize180(H - target);
+                };
+            }
+
+            function solveCusp(initial, evalFn) {
+                let x = Number(initial);
+                if (!Number.isFinite(x)) x = 0;
+
+                // Newton with finite-difference derivative (guarded).
+                let bestX = x;
+                let bestF = Infinity;
+                for (let i = 0; i < 18; i++) {
+                    const f = evalFn(x);
+                    if (!Number.isFinite(f)) break;
+                    const af = Math.abs(f);
+                    if (af < bestF) {
+                        bestF = af;
+                        bestX = x;
+                    }
+                    if (af < 1e-6) return normalize360(x);
+
+                    const h = 0.05;
+                    const f1 = evalFn(x + h);
+                    const f2 = evalFn(x - h);
+                    if (!Number.isFinite(f1) || !Number.isFinite(f2)) break;
+                    const df = (f1 - f2) / (2 * h);
+                    if (!Number.isFinite(df) || Math.abs(df) < 1e-4) break;
+
+                    let step = f / df;
+                    // Ограничиваем шаг, чтобы не улетать через разрыв нормализации.
+                    step = clamp(step, -10, 10);
+                    x = x - step;
+                }
+
+                // Bracket scan around initial guess, then bisection.
+                const center = Number(initial);
+                let prevX = null;
+                let prevF = null;
+                let a = null, b = null;
+                for (let t = -60; t <= 60; t += 1) {
+                    const xt = center + t;
+                    const ft = evalFn(xt);
+                    if (!Number.isFinite(ft)) continue;
+                    const aft = Math.abs(ft);
+                    if (aft < bestF) {
+                        bestF = aft;
+                        bestX = xt;
+                    }
+                    if (prevF !== null && Math.sign(prevF) !== Math.sign(ft)) {
+                        a = prevX; b = xt;
+                        break;
+                    }
+                    prevX = xt;
+                    prevF = ft;
+                }
+
+                if (a !== null && b !== null) {
+                    let left = a;
+                    let right = b;
+                    let fL = evalFn(left);
+                    let fR = evalFn(right);
+                    for (let i = 0; i < 32; i++) {
+                        const mid = (left + right) / 2;
+                        const fM = evalFn(mid);
+                        if (!Number.isFinite(fM)) break;
+                        if (Math.abs(fM) < 1e-6) return normalize360(mid);
+                        if (Math.sign(fL) === Math.sign(fM)) {
+                            left = mid;
+                            fL = fM;
+                        } else {
+                            right = mid;
+                            fR = fM;
+                        }
+                    }
+                    return normalize360((left + right) / 2);
+                }
+
+                return normalize360(bestX);
+            }
+
+            // 11 и 12: верхняя полудуга (MC→ASC), трисекция A.
+            // 2 и 3: нижняя полудуга (IC→ASC), трисекция (180-A).
+            let c11 = solveCusp(guess11, makeEvalUpper(1));
+            let c12 = solveCusp(guess12, makeEvalUpper(2));
+            let c3 = solveCusp(guess3, makeEvalLower(1));
+            let c2 = solveCusp(guess2, makeEvalLower(2));
+
+            // Если что-то пошло не так — фолбэк на Порфирия.
+            const all = [c2, c3, c11, c12];
+            if (all.some(v => !Number.isFinite(v))) {
+                return calculateHousesPorphyry(asc, mcLon);
+            }
+
+            const c4 = ic;
+            const c7 = desc;
+            const c10 = mcLon;
+            const c5 = normalize360(c11 + 180);
+            const c6 = normalize360(c12 + 180);
+            const c8 = normalize360(c2 + 180);
+            const c9 = normalize360(c3 + 180);
+
+            const houses = [asc, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12];
+
+            // Быстрая проверка порядка: куспиды должны идти по кругу от ASC.
+            // Если порядок "перепрыгнул" (редко, из-за численных артефактов) — берём Порфирия.
+            const unwrapped = unwrapCuspsFromAsc(houses);
+            for (let i = 1; i < unwrapped.length; i++) {
+                if (!(unwrapped[i] > unwrapped[i - 1])) {
+                    return calculateHousesPorphyry(asc, mcLon);
+                }
+            }
+
+            return houses.map(normalize360);
+        }
+
+        function unwrapCuspsFromAsc(houses) {
+            const base = normalize360(houses[0]);
+            const out = [base];
+            for (let i = 1; i < 12; i++) {
+                let x = normalize360(houses[i]);
+                while (x <= out[i - 1]) x += 360;
+                out.push(x);
+            }
+            return out;
+        }
+
+        function getHouseNumber(longitude, houses) {
+            const cusps = unwrapCuspsFromAsc(houses);
+            let lon = normalize360(longitude);
+            while (lon < cusps[0]) lon += 360;
+            for (let i = 0; i < 11; i++) {
+                if (lon >= cusps[i] && lon < cusps[i + 1]) return i + 1;
+            }
+            // последний сектор: [cusp12, cusp1+360)
+            return 12;
         }
 
         function calculateAspects(planets) {
@@ -1708,7 +1949,7 @@
             // Планеты в домах
             let housesHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
+                const house = getHouseNumber(data.longitude, chartData.houses);
                 housesHtml += `
                     <div class="planet-row">
                         <div class="planet-symbol">${PLANET_SYMBOLS[name] || '●'}</div>
@@ -1740,7 +1981,7 @@
             // Таблица
             let tableHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
+                const house = getHouseNumber(data.longitude, chartData.houses);
                 tableHtml += `
                     <tr>
                         <td>${PLANETS_RU[name]}</td>
@@ -1776,7 +2017,7 @@
             const rulerDetails = [rulerPrimary, rulerSecondary].filter(Boolean).map((rk) => {
                 const p = chartData.planets[rk];
                 if (!p) return null;
-                const house = Math.floor((p.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
+                const house = getHouseNumber(p.longitude, chartData.houses);
                 const aspects = chartData.aspects
                     .filter(a => a.planet1 === rk || a.planet2 === rk)
                     .slice(0, 6)
@@ -1798,7 +2039,7 @@
             const destiny = `Опорные точки предназначения в карте обычно читают по МС (карьера/статус), управителю карты и Солнцу. В вашей карте МС в знаке «${mcSignName}» (${mcDeg}°), а Асцендент в «${ascSignName}» (${ascDeg}°).`;
 
             const planetLines = Object.entries(chartData.planets).map(([k, p]) => {
-                const house = Math.floor((p.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
+                const house = getHouseNumber(p.longitude, chartData.houses);
                 const aspectsCount = chartData.aspects.filter(a => a.planet1 === k || a.planet2 === k).length;
                 const theme = PLANET_THEMES[k] ? ` — ${PLANET_THEMES[k]}` : '';
                 return `<li><strong>${PLANETS_RU[k]}${p.retrograde ? ' ℞' : ''}</strong>: ${ZODIAC_RU[p.sign]} ${p.degree.toFixed(1)}° — дом ${house}. <span style="color: var(--text-muted);">(${aspectsCount} аспект(ов)${theme})</span></li>`;
