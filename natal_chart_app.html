@@ -871,9 +871,20 @@
             document.getElementById('birthCountry').value = country;
             document.getElementById('citySuggestions').style.display = 'none';
             
-            lastSelectedCoords = { lat, lng };
+            const latNum = Number(lat);
+            const lngNum = Number(lng);
+            if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+                lastSelectedCoords = null;
+                lastSelectedTimeZone = null;
+                lastSelectedUtcOffsetMinutes = null;
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Не удалось определить координаты города.</strong> Попробуйте выбрать другой вариант из списка.`;
+                return;
+            }
+
+            lastSelectedCoords = { lat: latNum, lng: lngNum };
             try {
-                await getTimezone(lat, lng);
+                await getTimezone(latNum, lngNum);
             } catch (err) {
                 document.getElementById('timezoneInfo').innerHTML =
                     `<strong>Не удалось определить часовой пояс автоматически.</strong> Попробуйте выбрать другой вариант из списка.`;
@@ -948,12 +959,20 @@
                 };
                 currentChart = chartData;
                 
-                displayChart(chartData);
                 displayResults(chartData);
                 
                 document.getElementById('chartSection').classList.add('active');
                 document.getElementById('resultsSection').style.display = 'grid';
                 document.getElementById('tableSection').style.display = 'block';
+
+                // Важно: canvas корректно измеряется только когда блок видим.
+                requestAnimationFrame(() => {
+                    try {
+                        displayChart(chartData);
+                    } catch (err) {
+                        console.error('Ошибка отрисовки космограммы:', err);
+                    }
+                });
                 
                 showSuccess('Натальная карта рассчитана успешно!');
             } catch (error) {
@@ -1009,14 +1028,21 @@
             const parts = dtf.formatToParts(dateUtcInstant);
             const map = {};
             for (const p of parts) map[p.type] = p.value;
-            const asUtcMillis = Date.UTC(
-                parseInt(map.year, 10),
-                parseInt(map.month, 10) - 1,
-                parseInt(map.day, 10),
-                parseInt(map.hour, 10),
-                parseInt(map.minute, 10),
-                parseInt(map.second, 10)
-            );
+            let year = parseInt(map.year, 10);
+            let month = parseInt(map.month, 10) - 1;
+            let day = parseInt(map.day, 10);
+            let hour = parseInt(map.hour, 10);
+            const minute = parseInt(map.minute, 10);
+            const second = parseInt(map.second, 10);
+
+            // На некоторых платформах `Intl` может вернуть hour="24" для полуночи.
+            // Это соответствует 00:xx следующего дня.
+            if (hour === 24) {
+                hour = 0;
+                day += 1;
+            }
+
+            const asUtcMillis = Date.UTC(year, month, day, hour, minute, second);
             // offset = (zoned-as-utc) - (real-utc)
             return (asUtcMillis - dateUtcInstant.getTime()) / 60000;
         }
@@ -1408,17 +1434,25 @@
         function displayChart(chartData) {
             const canvas = document.getElementById('natalChart');
             const ctx = canvas.getContext('2d');
+
+            // Надёжное вычисление размеров (особенно после display:none -> block)
+            const rect = canvas.getBoundingClientRect();
+            const cssW = rect.width || canvas.offsetWidth || 0;
+            const cssH = rect.height || canvas.offsetHeight || 0;
+            const cssSize = Math.max(300, Math.floor(Math.min(cssW || 0, cssH || 0) || cssW || cssH || 600));
+            const dpr = window.devicePixelRatio || 1;
+
+            canvas.width = Math.round(cssSize * dpr);
+            canvas.height = Math.round(cssSize * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
+            const centerX = cssSize / 2;
+            const centerY = cssSize / 2;
             const radius = Math.min(centerX, centerY) * 0.9;
             
             // Фон
             ctx.fillStyle = '#0a0a14';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, cssSize, cssSize);
 
             // Внешний круг
             ctx.strokeStyle = '#00d4ff';
@@ -1639,16 +1673,31 @@
         }
 
         function shareChart() {
-            const text = currentChart ? 
-                `Натальная карта рассчитана: Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}` :
-                'Натальная карта';
-            
+            const url = window.location.href;
+            const text = currentChart
+                ? `Натальная карта рассчитана: Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}`
+                : 'Натальная карта';
+
+            // Web Share API (если доступен)
             if (navigator.share) {
-                navigator.share({ title: 'Натальная карта', text: text });
-            } else {
-                alert('Ссылка скопирована в буфер обмена:\n' + window.location.href);
-                navigator.clipboard.writeText(window.location.href);
+                navigator.share({ title: 'Натальная карта', text, url }).catch(() => {
+                    // если пользователь отменил — просто молча выходим
+                });
+                return;
             }
+
+            // Clipboard API работает только в secure context (https://) и часто не работает на file://
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showSuccess('Ссылка скопирована в буфер обмена');
+                }).catch(() => {
+                    window.prompt('Скопируйте ссылку:', url);
+                });
+                return;
+            }
+
+            // Надёжный фолбэк
+            window.prompt('Скопируйте ссылку:', url);
         }
 
         // Инициализация
