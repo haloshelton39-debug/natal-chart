@@ -12,6 +12,10 @@
             box-sizing: border-box;
         }
 
+        html {
+            font-size: 16px;
+        }
+
         :root {
             --primary: #2a2a3e;
             --secondary: #1a1a28;
@@ -25,6 +29,7 @@
             --element-water: #4488ff;
             --success: #44dd77;
             --error: #ff5555;
+            --tap-target: 44px;
         }
 
         body {
@@ -33,6 +38,32 @@
             color: var(--text);
             min-height: 100vh;
             overflow-x: hidden;
+            line-height: 1.55;
+            text-rendering: optimizeLegibility;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(0, 212, 255, 0.35);
+            color: var(--text);
+            text-decoration: none;
+            transform: translateY(-200%);
+            transition: transform 0.2s ease;
+            z-index: 2000;
+        }
+
+        .skip-link:focus {
+            transform: translateY(0);
+        }
+
+        :focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.25);
         }
 
         .container {
@@ -87,8 +118,8 @@
             font-weight: 600;
             color: var(--accent);
             font-size: 0.95em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            text-transform: none;
+            letter-spacing: 0.2px;
         }
 
         input, select {
@@ -101,6 +132,7 @@
             font-size: 1em;
             transition: all 0.3s ease;
             font-family: inherit;
+            min-height: var(--tap-target);
         }
 
         input:focus, select:focus {
@@ -137,7 +169,7 @@
             text-align: left;
             background: transparent;
             border: none;
-            padding: 10px 12px;
+            padding: 12px 12px;
             cursor: pointer;
             color: var(--text);
             font: inherit;
@@ -145,6 +177,8 @@
             letter-spacing: 0;
             flex: 0 0 auto;
             border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+            min-height: var(--tap-target);
+            touch-action: manipulation;
         }
 
         .suggestion-item:last-child {
@@ -174,6 +208,8 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 1px;
+            min-height: var(--tap-target);
+            touch-action: manipulation;
         }
 
         .btn-primary {
@@ -441,6 +477,14 @@
             }
         }
 
+        @media (max-width: 640px) {
+            .container { padding: 14px; }
+            .form-section, .chart-section { padding: 18px; }
+            .button-group { flex-direction: column; }
+            .button-group button { width: 100%; }
+            .legend { grid-template-columns: 1fr; }
+        }
+
         .settings-toggle {
             position: fixed;
             bottom: 20px;
@@ -458,6 +502,7 @@
             box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
             z-index: 1000;
             transition: all 0.3s ease;
+            touch-action: manipulation;
         }
 
         .settings-toggle:hover {
@@ -487,6 +532,9 @@
             border-radius: 15px;
             padding: 30px;
             max-width: 500px;
+            width: calc(100% - 32px);
+            max-height: calc(100vh - 48px);
+            overflow: auto;
             border: 1px solid rgba(0, 212, 255, 0.3);
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
         }
@@ -512,6 +560,9 @@
             font-size: 1.5em;
             cursor: pointer;
             transition: all 0.3s ease;
+            width: var(--tap-target);
+            height: var(--tap-target);
+            border-radius: 10px;
         }
 
         .close-btn:hover {
@@ -552,6 +603,10 @@
             padding: 40px;
             border-radius: 10px;
             margin-top: 30px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
         }
 
         @media print {
