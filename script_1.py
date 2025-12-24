@@ -812,6 +812,28 @@ html_code = '''
                 'Часовой пояс будет определён автоматически по выбранному городу и стране';
         });
 
+        function updateTimezoneInfoForCurrentInputs() {
+            if (!lastSelectedTimeZone) return;
+            const dateStr = document.getElementById('birthDate').value;
+            const timeStr = document.getElementById('birthTime').value;
+            if (!dateStr || !timeStr) return;
+
+            try {
+                const utcDate = zonedDateTimeToUtcDate(dateStr, timeStr, lastSelectedTimeZone);
+                const mins = Math.round(getTimeZoneOffsetMinutes(utcDate, lastSelectedTimeZone));
+                lastSelectedUtcOffsetMinutes = mins;
+                const off = formatUtcOffsetFromMinutes(mins);
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Часовой пояс:</strong> UTC${off} <span style="color: var(--text-muted);">(${lastSelectedTimeZone})</span>`;
+            } catch (e) {
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Часовой пояс:</strong> ${lastSelectedTimeZone}`;
+            }
+        }
+
+        document.getElementById('birthDate').addEventListener('change', updateTimezoneInfoForCurrentInputs);
+        document.getElementById('birthTime').addEventListener('change', updateTimezoneInfoForCurrentInputs);
+
         function formatUtcOffsetFromMinutes(totalMinutes) {
             const sign = totalMinutes >= 0 ? '+' : '-';
             const abs = Math.abs(totalMinutes);
@@ -888,19 +910,7 @@ html_code = '''
                 if (!tz) throw new Error('Timezone not found');
                 lastSelectedTimeZone = tz;
 
-                if (typeof data.gmtOffset === 'number') {
-                    lastSelectedUtcOffsetMinutes = Math.round(data.gmtOffset * 60);
-                } else {
-                    lastSelectedUtcOffsetMinutes = null;
-                }
-
-                const offsetStr = Number.isFinite(lastSelectedUtcOffsetMinutes)
-                    ? formatUtcOffsetFromMinutes(lastSelectedUtcOffsetMinutes)
-                    : null;
-
-                document.getElementById('timezoneInfo').innerHTML = offsetStr
-                    ? `<strong>Часовой пояс:</strong> UTC${offsetStr} <span style="color: var(--text-muted);">(${tz})</span>`
-                    : `<strong>Часовой пояс:</strong> ${tz}`;
+                updateTimezoneInfoForCurrentInputs();
 
                 return tz;
             } catch (error) {
@@ -948,6 +958,12 @@ html_code = '''
             try {
                 // Точный расчёт: UTC по IANA TZ + координаты + реальные положения небесных тел
                 const chartData = calculateNatalChart(birthDate, birthTime, timezone, lastSelectedCoords.lat, lastSelectedCoords.lng);
+                chartData.input = {
+                    date: birthDate,
+                    time: birthTime,
+                    place: birthPlace,
+                    country
+                };
                 currentChart = chartData;
                 
                 displayChart(chartData);
@@ -1528,6 +1544,7 @@ html_code = '''
             }
             document.getElementById('interpretation').innerHTML = `
                 <div style="color: var(--text-muted); line-height: 1.6;">
+                    <div><strong style="color: var(--accent);">Ввод:</strong> ${chartData.input?.date || '-'} ${chartData.input?.time || '-'} <span style="color: var(--text-muted);">(${chartData.input?.place || '-'}, ${chartData.input?.country || '-'})</span></div>
                     <div><strong style="color: var(--accent);">UTC:</strong> ${chartData.dateUTC ? new Date(chartData.dateUTC).toISOString().replace('.000Z','Z') : '-'}</div>
                     <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${tzLine}</div>
                     <div><strong style="color: var(--accent);">Координаты:</strong> ${Number.isFinite(lat) ? lat.toFixed(4) : '-'}, ${Number.isFinite(lng) ? lng.toFixed(4) : '-'}</div>
