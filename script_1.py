@@ -1207,6 +1207,48 @@ html_code = '''
             return cusps;
         }
 
+        function buildPorphyryHouses(ascDeg, mcDeg) {
+            const cusps = new Array(12);
+            const asc = normalize360(ascDeg);
+            const mc = normalize360(mcDeg);
+            const desc = normalize360(asc + 180);
+            const ic = normalize360(mc + 180);
+
+            cusps[0] = asc;
+            cusps[3] = ic;
+            cusps[6] = desc;
+            cusps[9] = mc;
+
+            const spanMCtoAsc = normalize360(asc - mc);
+            cusps[10] = normalize360(mc + spanMCtoAsc / 3);
+            cusps[11] = normalize360(mc + 2 * spanMCtoAsc / 3);
+
+            const spanAsctoIC = normalize360(ic - asc);
+            cusps[1] = normalize360(asc + spanAsctoIC / 3);
+            cusps[2] = normalize360(asc + 2 * spanAsctoIC / 3);
+
+            const spanICtoDesc = normalize360(desc - ic);
+            cusps[4] = normalize360(ic + spanICtoDesc / 3);
+            cusps[5] = normalize360(ic + 2 * spanICtoDesc / 3);
+
+            const spanDesctoMC = normalize360(mc - desc);
+            cusps[7] = normalize360(desc + spanDesctoMC / 3);
+            cusps[8] = normalize360(desc + 2 * spanDesctoMC / 3);
+
+            return cusps;
+        }
+
+        function buildHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) {
+            if (Math.abs(latDeg) >= 66) {
+                return { system: 'Порфирий', cusps: buildPorphyryHouses(ascDeg, mcDeg) };
+            }
+            try {
+                return { system: 'Плацидус', cusps: buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) };
+            } catch (e) {
+                return { system: 'Порфирий', cusps: buildPorphyryHouses(ascDeg, mcDeg) };
+            }
+        }
+
         function getHouseIndex(planetLon, houseCusps) {
             // houseCusps: 12 углов (1..12) в градусах, порядок домов
             for (let i = 0; i < 12; i++) {
@@ -1239,8 +1281,8 @@ html_code = '''
             const ascendant = calcAscLongitude(lstDeg, latDeg, epsDeg);
             const mc = calcMcLongitude(lstDeg, epsDeg);
 
-            // Дома: Плацидус (реальная система домов, зависит от координат/времени)
-            const houses = buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascendant, mc);
+            const houseResult = buildHouses(lstDeg, latDeg, epsDeg, ascendant, mc);
+            const houses = houseResult.cusps;
 
             const bodyMap = {
                 sun: Astronomy.Body.Sun,
@@ -1286,6 +1328,7 @@ html_code = '''
                 dateUTC: utcDate,
                 timeZone,
                 location: { lat: latDeg, lng: lonDeg },
+                houseSystem: houseResult.system,
                 planets,
                 ascendant,
                 ascendantSign: Math.floor(ascendant / 30),
@@ -1515,11 +1558,14 @@ html_code = '''
 
             document.getElementById('strengthHarmony').innerHTML = `
                 <div style="margin-bottom: 10px; color: var(--text-muted);">
-                    <strong style="color: var(--accent);">Система домов:</strong> Плацидус
+                    <strong style="color: var(--accent);">Система домов:</strong> ${chartData.houseSystem || 'Плацидус'}
                 </div>
                 <div style="margin-bottom: 10px;">
                     <strong style="color: var(--accent);">Индекс гармонии:</strong> ${harmonyIndex.toFixed(0)}/100
                     <span style="color: var(--text-muted);">(${harmonyText})</span>
+                </div>
+                <div style="margin-bottom: 10px; color: var(--text-muted); font-size: 0.9em;">
+                    <strong style="color: var(--accent);">Как считается:</strong> гармония — по аспектам; сила — по близости планет к ASC/MC/DSC/IC
                 </div>
                 <div style="margin-bottom: 10px;">
                     <strong style="color: var(--accent);">Самые сильные планеты:</strong>
@@ -1548,7 +1594,7 @@ html_code = '''
                     <div><strong style="color: var(--accent);">UTC:</strong> ${chartData.dateUTC ? new Date(chartData.dateUTC).toISOString().replace('.000Z','Z') : '-'}</div>
                     <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${tzLine}</div>
                     <div><strong style="color: var(--accent);">Координаты:</strong> ${Number.isFinite(lat) ? lat.toFixed(4) : '-'}, ${Number.isFinite(lng) ? lng.toFixed(4) : '-'}</div>
-                    <div><strong style="color: var(--accent);">Дома:</strong> Плацидус</div>
+                    <div><strong style="color: var(--accent);">Дома:</strong> ${chartData.houseSystem || 'Плацидус'}</div>
                 </div>
             `;
 
