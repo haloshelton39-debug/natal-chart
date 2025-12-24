@@ -620,7 +620,7 @@ html_code = '''
                     <div class="form-group">
                         <label for="birthPlace">Место рождения (город)</label>
                         <input type="text" id="birthPlace" placeholder="Например: Москва" required autocomplete="off">
-                        <div id="citySuggestions" style="max-height: 200px; overflow-y: auto; margin-top: 8px; display: none;"></div>
+                        <div id="citySuggestions" class="suggestions" style="max-height: 220px; overflow-y: auto; margin-top: 8px; display: none;"></div>
                     </div>
 
                     <div class="form-group">
@@ -642,19 +642,8 @@ html_code = '''
                     </div>
 
                     <div class="form-group">
-                        <label for="timezone">Часовой пояс</label>
-                        <div class="timezone-row">
-                            <input type="text" id="timezone" placeholder="Автоопределение (или введите вручную)..." readonly style="background: rgba(0, 212, 255, 0.1);">
-                            <button type="button" class="timezone-btn" id="detectTimezoneBtn" disabled>Определить</button>
-                        </div>
-                        <div class="timezone-toggle">
-                            <label>
-                                <input type="checkbox" id="timezoneManual">
-                                Ввести вручную
-                            </label>
-                        </div>
                         <div class="timezone-info" id="timezoneInfo">
-                            Часовой пояс будет определён автоматически при выборе города
+                            Часовой пояс будет определён автоматически по выбранному городу и стране
                         </div>
                     </div>
 
@@ -808,19 +797,60 @@ html_code = '''
 
         let currentChart = null;
         let lastSelectedCoords = null;
+        let lastSelectedTimeZone = null;
+        let lastSelectedUtcOffsetMinutes = null;
 
         // Инициализация
         document.getElementById('chartForm').addEventListener('submit', handleSubmit);
         document.getElementById('birthPlace').addEventListener('input', debounce(handleCitySearch, 300));
-        document.getElementById('detectTimezoneBtn').addEventListener('click', () => {
-            if (lastSelectedCoords) getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
+        document.getElementById('birthCountry').addEventListener('change', () => {
+            // Смена страны инвалидирует ранее выбранный город/таймзону
+            lastSelectedCoords = null;
+            lastSelectedTimeZone = null;
+            lastSelectedUtcOffsetMinutes = null;
+            document.getElementById('timezoneInfo').innerHTML =
+                'Часовой пояс будет определён автоматически по выбранному городу и стране';
         });
-        document.getElementById('timezoneManual').addEventListener('change', (e) => {
-            setTimezoneManualMode(e.target.checked);
-        });
+
+        function updateTimezoneInfoForCurrentInputs() {
+            if (!lastSelectedTimeZone) return;
+            const dateStr = document.getElementById('birthDate').value;
+            const timeStr = document.getElementById('birthTime').value;
+            if (!dateStr || !timeStr) return;
+
+            try {
+                const utcDate = zonedDateTimeToUtcDate(dateStr, timeStr, lastSelectedTimeZone);
+                const mins = Math.round(getTimeZoneOffsetMinutes(utcDate, lastSelectedTimeZone));
+                lastSelectedUtcOffsetMinutes = mins;
+                const off = formatUtcOffsetFromMinutes(mins);
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Часовой пояс:</strong> UTC${off} <span style="color: var(--text-muted);">(${lastSelectedTimeZone})</span>`;
+            } catch (e) {
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Часовой пояс:</strong> ${lastSelectedTimeZone}`;
+            }
+        }
+
+        document.getElementById('birthDate').addEventListener('change', updateTimezoneInfoForCurrentInputs);
+        document.getElementById('birthTime').addEventListener('change', updateTimezoneInfoForCurrentInputs);
+
+        function formatUtcOffsetFromMinutes(totalMinutes) {
+            const sign = totalMinutes >= 0 ? '+' : '-';
+            const abs = Math.abs(totalMinutes);
+            const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+            const mm = String(abs % 60).padStart(2, '0');
+            return `${sign}${hh}:${mm}`;
+        }
 
         async function handleCitySearch(e) {
             const query = e.target.value;
+            // Любое ручное редактирование поля сбрасывает выбранные координаты/таймзону
+            lastSelectedCoords = null;
+            lastSelectedTimeZone = null;
+            lastSelectedUtcOffsetMinutes = null;
+            document.getElementById('timezoneInfo').innerHTML =
+                'Часовой пояс будет определён автоматически по выбранному городу и стране';
+
             if (query.length < 2) {
                 document.getElementById('citySuggestions').style.display = 'none';
                 return;
@@ -828,17 +858,19 @@ html_code = '''
 
             try {
                 const country = document.getElementById('birthCountry').value || 'RU';
-                const response = await fetch(
-                    `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=10&username=demo`
-                );
+                const encodedQuery = encodeURIComponent(query);
+                const response = await fetch(`https://secure.geonames.org/searchJSON?name_startsWith=${encodedQuery}&country=${country}&featureClass=P&maxRows=10&username=demo`);
                 const data = await response.json();
                 
                 if (data.geonames && data.geonames.length > 0) {
                     const suggestions = data.geonames.map(city => `
-                        <div style="padding: 8px; cursor: pointer; color: var(--text); border-bottom: 1px solid rgba(0,212,255,0.1);"
-                             onclick="selectCity('${city.name}', ${city.lat}, ${city.lng}, '${city.countryCode}')">
-                            ${city.name} (${city.adminName1})
-                        </div>
+                        <button type="button" class="suggestion-item"
+                                onclick="selectCity(${JSON.stringify(city.name)}, ${JSON.stringify(city.adminName1 || '')}, ${city.lat}, ${city.lng}, '${city.countryCode}')">
+                            <div style="font-weight: 700;">${city.name}</div>
+                            <div style="color: var(--text-muted); font-size: 0.9em;">
+                                ${(city.adminName1 ? city.adminName1 + ' · ' : '')}${city.countryCode}
+                            </div>
+                        </button>
                     `).join('');
                     
                     document.getElementById('citySuggestions').innerHTML = suggestions;
@@ -851,53 +883,22 @@ html_code = '''
             }
         }
 
-        function selectCity(name, lat, lng, country) {
-            document.getElementById('birthPlace').value = name;
+        async function selectCity(name, adminName1, lat, lng, country) {
+            document.getElementById('birthPlace').value = adminName1 ? `${name}, ${adminName1}` : name;
             document.getElementById('birthCountry').value = country;
             document.getElementById('citySuggestions').style.display = 'none';
             
             lastSelectedCoords = { lat, lng };
-            document.getElementById('detectTimezoneBtn').disabled = false;
-
-            // Получить часовой пояс (если не включён ручной ввод)
-            if (!document.getElementById('timezoneManual').checked) {
-                getTimezone(lat, lng);
-            } else {
+            try {
+                await getTimezone(lat, lng);
+            } catch (err) {
                 document.getElementById('timezoneInfo').innerHTML =
-                    `<strong>Ручной ввод включён:</strong> вы можете ввести часовой пояс, либо нажмите «Определить»`;
-            }
-        }
-
-        function setTimezoneManualMode(enabled) {
-            const tzInput = document.getElementById('timezone');
-
-            if (enabled) {
-                tzInput.removeAttribute('readonly');
-                tzInput.style.background = 'rgba(255, 255, 255, 0.05)';
-                tzInput.style.cursor = 'text';
-                if (!tzInput.value) {
-                    document.getElementById('timezoneInfo').innerHTML =
-                        `<strong>Ручной ввод:</strong> введите IANA timezone (например, Europe/Moscow)`;
-                }
-            } else {
-                tzInput.setAttribute('readonly', 'readonly');
-                tzInput.style.background = 'rgba(0, 212, 255, 0.1)';
-                tzInput.style.cursor = 'default';
-                if (lastSelectedCoords) {
-                    document.getElementById('timezoneInfo').innerHTML =
-                        `Часовой пояс будет определён автоматически при выборе города`;
-                    getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
-                } else {
-                    document.getElementById('timezoneInfo').innerHTML =
-                        `Часовой пояс будет определён автоматически при выборе города`;
-                }
+                    `<strong>Не удалось определить часовой пояс автоматически.</strong> Попробуйте выбрать другой вариант из списка.`;
             }
         }
 
         async function getTimezone(lat, lng) {
             try {
-                const btn = document.getElementById('detectTimezoneBtn');
-                btn.disabled = true;
                 document.getElementById('timezoneInfo').innerHTML = `Определяем часовой пояс...`;
 
                 // GeoNames timezone endpoint (без отдельного ключа; используется тот же username)
@@ -907,28 +908,15 @@ html_code = '''
                 const data = await response.json();
                 const tz = data.timezoneId;
                 if (!tz) throw new Error('Timezone not found');
-                document.getElementById('timezone').value = tz;
-                document.getElementById('timezoneInfo').innerHTML =
-                    `<strong>Часовой пояс:</strong> ${tz}` +
-                    (typeof data.gmtOffset === 'number' ? ` <span style="color: var(--text-muted);">(UTC${data.gmtOffset >= 0 ? '+' : ''}${data.gmtOffset})</span>` : '');
+                lastSelectedTimeZone = tz;
 
-                // Успешное авто-определение: держим поле в авто-режиме, если пользователь не включил ручной ввод
-                if (!document.getElementById('timezoneManual').checked) {
-                    document.getElementById('timezone').setAttribute('readonly', 'readonly');
-                    document.getElementById('timezone').style.background = 'rgba(0, 212, 255, 0.1)';
-                    document.getElementById('timezone').style.cursor = 'default';
-                }
+                updateTimezoneInfoForCurrentInputs();
 
-                btn.disabled = false;
+                return tz;
             } catch (error) {
-                // Если автоопределение не удалось — делаем ввод активным, чтобы форма не оставалась "неактивной"
-                document.getElementById('timezoneManual').checked = true;
-                setTimezoneManualMode(true);
-                document.getElementById('timezoneInfo').innerHTML =
-                    `<strong>Не удалось определить автоматически.</strong> Введите часовой пояс вручную (например, Europe/Moscow).`;
-
-                // Кнопку "Определить" оставляем доступной, если есть координаты
-                document.getElementById('detectTimezoneBtn').disabled = !lastSelectedCoords;
+                lastSelectedTimeZone = null;
+                lastSelectedUtcOffsetMinutes = null;
+                throw error;
             }
         }
 
@@ -938,19 +926,28 @@ html_code = '''
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
-            const timezone = (document.getElementById('timezone').value || '').trim();
+            const country = document.getElementById('birthCountry').value;
             
-            if (!birthDate || !birthTime || !birthPlace || !timezone) {
-                showError('Пожалуйста, заполните все поля (включая часовой пояс)');
+            if (!birthDate || !birthTime || !birthPlace || !country) {
+                showError('Пожалуйста, заполните все поля');
                 return;
             }
             if (!lastSelectedCoords) {
                 // Если пользователь ввёл город вручную — пробуем взять координаты по GeoNames
                 try {
-                    const country = document.getElementById('birthCountry').value || 'RU';
                     lastSelectedCoords = await resolveCityToCoords(birthPlace, country);
                 } catch (err) {
                     showError('Не удалось определить координаты города. Выберите город из подсказок.');
+                    return;
+                }
+            }
+
+            let timezone = lastSelectedTimeZone;
+            if (!timezone) {
+                try {
+                    timezone = await getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
+                } catch (err) {
+                    showError('Не удалось определить часовой пояс автоматически. Выберите город из подсказок (выпадающего списка).');
                     return;
                 }
             }
@@ -961,6 +958,12 @@ html_code = '''
             try {
                 // Точный расчёт: UTC по IANA TZ + координаты + реальные положения небесных тел
                 const chartData = calculateNatalChart(birthDate, birthTime, timezone, lastSelectedCoords.lat, lastSelectedCoords.lng);
+                chartData.input = {
+                    date: birthDate,
+                    time: birthTime,
+                    place: birthPlace,
+                    country
+                };
                 currentChart = chartData;
                 
                 displayChart(chartData);
@@ -979,7 +982,8 @@ html_code = '''
         }
 
         async function resolveCityToCoords(city, country) {
-            const query = encodeURIComponent(city);
+            const cityName = String(city || '').split(',')[0].trim() || String(city || '').trim();
+            const query = encodeURIComponent(cityName);
             const response = await fetch(
                 `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=1&username=demo`
             );
@@ -1203,6 +1207,48 @@ html_code = '''
             return cusps;
         }
 
+        function buildPorphyryHouses(ascDeg, mcDeg) {
+            const cusps = new Array(12);
+            const asc = normalize360(ascDeg);
+            const mc = normalize360(mcDeg);
+            const desc = normalize360(asc + 180);
+            const ic = normalize360(mc + 180);
+
+            cusps[0] = asc;
+            cusps[3] = ic;
+            cusps[6] = desc;
+            cusps[9] = mc;
+
+            const spanMCtoAsc = normalize360(asc - mc);
+            cusps[10] = normalize360(mc + spanMCtoAsc / 3);
+            cusps[11] = normalize360(mc + 2 * spanMCtoAsc / 3);
+
+            const spanAsctoIC = normalize360(ic - asc);
+            cusps[1] = normalize360(asc + spanAsctoIC / 3);
+            cusps[2] = normalize360(asc + 2 * spanAsctoIC / 3);
+
+            const spanICtoDesc = normalize360(desc - ic);
+            cusps[4] = normalize360(ic + spanICtoDesc / 3);
+            cusps[5] = normalize360(ic + 2 * spanICtoDesc / 3);
+
+            const spanDesctoMC = normalize360(mc - desc);
+            cusps[7] = normalize360(desc + spanDesctoMC / 3);
+            cusps[8] = normalize360(desc + 2 * spanDesctoMC / 3);
+
+            return cusps;
+        }
+
+        function buildHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) {
+            if (Math.abs(latDeg) >= 66) {
+                return { system: 'Порфирий', cusps: buildPorphyryHouses(ascDeg, mcDeg) };
+            }
+            try {
+                return { system: 'Плацидус', cusps: buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) };
+            } catch (e) {
+                return { system: 'Порфирий', cusps: buildPorphyryHouses(ascDeg, mcDeg) };
+            }
+        }
+
         function getHouseIndex(planetLon, houseCusps) {
             // houseCusps: 12 углов (1..12) в градусах, порядок домов
             for (let i = 0; i < 12; i++) {
@@ -1235,8 +1281,8 @@ html_code = '''
             const ascendant = calcAscLongitude(lstDeg, latDeg, epsDeg);
             const mc = calcMcLongitude(lstDeg, epsDeg);
 
-            // Дома: Плацидус (реальная система домов, зависит от координат/времени)
-            const houses = buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascendant, mc);
+            const houseResult = buildHouses(lstDeg, latDeg, epsDeg, ascendant, mc);
+            const houses = houseResult.cusps;
 
             const bodyMap = {
                 sun: Astronomy.Body.Sun,
@@ -1282,6 +1328,7 @@ html_code = '''
                 dateUTC: utcDate,
                 timeZone,
                 location: { lat: latDeg, lng: lonDeg },
+                houseSystem: houseResult.system,
                 planets,
                 ascendant,
                 ascendantSign: Math.floor(ascendant / 30),
@@ -1511,11 +1558,14 @@ html_code = '''
 
             document.getElementById('strengthHarmony').innerHTML = `
                 <div style="margin-bottom: 10px; color: var(--text-muted);">
-                    <strong style="color: var(--accent);">Система домов:</strong> Плацидус
+                    <strong style="color: var(--accent);">Система домов:</strong> ${chartData.houseSystem || 'Плацидус'}
                 </div>
                 <div style="margin-bottom: 10px;">
                     <strong style="color: var(--accent);">Индекс гармонии:</strong> ${harmonyIndex.toFixed(0)}/100
                     <span style="color: var(--text-muted);">(${harmonyText})</span>
+                </div>
+                <div style="margin-bottom: 10px; color: var(--text-muted); font-size: 0.9em;">
+                    <strong style="color: var(--accent);">Как считается:</strong> гармония — по аспектам; сила — по близости планет к ASC/MC/DSC/IC
                 </div>
                 <div style="margin-bottom: 10px;">
                     <strong style="color: var(--accent);">Самые сильные планеты:</strong>
@@ -1528,12 +1578,23 @@ html_code = '''
 
             // Интерпретация (техническая справка: время/координаты)
             const { lat, lng } = chartData.location || {};
+            let tzLine = '-';
+            if (chartData.timeZone) {
+                try {
+                    const mins = Math.round(getTimeZoneOffsetMinutes(new Date(chartData.dateUTC), chartData.timeZone));
+                    const off = formatUtcOffsetFromMinutes(mins);
+                    tzLine = `UTC${off} <span style="color: var(--text-muted);">(${chartData.timeZone})</span>`;
+                } catch (e) {
+                    tzLine = chartData.timeZone;
+                }
+            }
             document.getElementById('interpretation').innerHTML = `
                 <div style="color: var(--text-muted); line-height: 1.6;">
+                    <div><strong style="color: var(--accent);">Ввод:</strong> ${chartData.input?.date || '-'} ${chartData.input?.time || '-'} <span style="color: var(--text-muted);">(${chartData.input?.place || '-'}, ${chartData.input?.country || '-'})</span></div>
                     <div><strong style="color: var(--accent);">UTC:</strong> ${chartData.dateUTC ? new Date(chartData.dateUTC).toISOString().replace('.000Z','Z') : '-'}</div>
-                    <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${chartData.timeZone || '-'}</div>
+                    <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${tzLine}</div>
                     <div><strong style="color: var(--accent);">Координаты:</strong> ${Number.isFinite(lat) ? lat.toFixed(4) : '-'}, ${Number.isFinite(lng) ? lng.toFixed(4) : '-'}</div>
-                    <div><strong style="color: var(--accent);">Дома:</strong> Плацидус</div>
+                    <div><strong style="color: var(--accent);">Дома:</strong> ${chartData.houseSystem || 'Плацидус'}</div>
                 </div>
             `;
 
