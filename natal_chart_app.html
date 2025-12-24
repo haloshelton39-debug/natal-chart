@@ -949,7 +949,9 @@
         }
 
         async function resolveCityToCoords(city, country) {
-            const query = encodeURIComponent(city);
+            // Если пользователь вставил/ввёл "Город, Регион" — берём только "Город" для поиска
+            const cityName = String(city || '').split(',')[0].trim() || String(city || '').trim();
+            const query = encodeURIComponent(cityName);
             const response = await fetch(
                 `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=1&username=demo`
             );
@@ -1498,10 +1500,20 @@
 
             // Интерпретация (техническая справка: время/координаты)
             const { lat, lng } = chartData.location || {};
+            let tzLine = '-';
+            if (chartData.timeZone) {
+                try {
+                    const mins = Math.round(getTimeZoneOffsetMinutes(new Date(chartData.dateUTC), chartData.timeZone));
+                    const off = formatUtcOffsetFromMinutes(mins);
+                    tzLine = `UTC${off} <span style="color: var(--text-muted);">(${chartData.timeZone})</span>`;
+                } catch (e) {
+                    tzLine = chartData.timeZone;
+                }
+            }
             document.getElementById('interpretation').innerHTML = `
                 <div style="color: var(--text-muted); line-height: 1.6;">
                     <div><strong style="color: var(--accent);">UTC:</strong> ${chartData.dateUTC ? new Date(chartData.dateUTC).toISOString().replace('.000Z','Z') : '-'}</div>
-                    <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${chartData.timeZone || '-'}</div>
+                    <div><strong style="color: var(--accent);">Часовой пояс:</strong> ${tzLine}</div>
                     <div><strong style="color: var(--accent);">Координаты:</strong> ${Number.isFinite(lat) ? lat.toFixed(4) : '-'}, ${Number.isFinite(lng) ? lng.toFixed(4) : '-'}</div>
                     <div><strong style="color: var(--accent);">Дома:</strong> Плацидус</div>
                 </div>
