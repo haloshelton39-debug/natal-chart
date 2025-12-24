@@ -766,6 +766,9 @@ html_code = '''
         </div>
     </div>
 
+    <!-- Astronomy Engine: точные положения планет/Луны/Солнца (геоцентрически) -->
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.min.js"></script>
+
     <script>
         const PLANETS_EN = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
         
@@ -930,18 +933,29 @@ html_code = '''
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
+            const timezone = (document.getElementById('timezone').value || '').trim();
             
-            if (!birthDate || !birthTime || !birthPlace) {
-                showError('Пожалуйста, заполните все поля');
+            if (!birthDate || !birthTime || !birthPlace || !timezone) {
+                showError('Пожалуйста, заполните все поля (включая часовой пояс)');
                 return;
+            }
+            if (!lastSelectedCoords) {
+                // Если пользователь ввёл город вручную — пробуем взять координаты по GeoNames
+                try {
+                    const country = document.getElementById('birthCountry').value || 'RU';
+                    lastSelectedCoords = await resolveCityToCoords(birthPlace, country);
+                } catch (err) {
+                    showError('Не удалось определить координаты города. Выберите город из подсказок.');
+                    return;
+                }
             }
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('errorMessage').style.display = 'none';
 
             try {
-                // Симуляция расчётов натальной карты с реальными астрологическими формулами
-                const chartData = calculateNatalChart(birthDate, birthTime, birthPlace);
+                // Точный расчёт: UTC по IANA TZ + координаты + реальные положения небесных тел
+                const chartData = calculateNatalChart(birthDate, birthTime, timezone, lastSelectedCoords.lat, lastSelectedCoords.lng);
                 currentChart = chartData;
                 
                 displayChart(chartData);
@@ -959,66 +973,214 @@ html_code = '''
             }
         }
 
-        function calculateNatalChart(dateStr, timeStr, place) {
-            const date = new Date(dateStr + 'T' + timeStr);
-            
-            // Вычисляем юлианское число (упрощённо)
-            const jd = getJulianDay(date);
-            
-            // Вычисляем положение планет (симуляция)
-            const planets = {};
-            PLANETS_EN.forEach((planet, index) => {
-                const longitude = (jd * 0.985647 + index * 25.5 + Math.random() * 30) % 360;
-                planets[planet] = {
-                    longitude: longitude,
-                    sign: Math.floor(longitude / 30),
-                    degree: longitude % 30,
-                    latitude: (Math.random() - 0.5) * 5,
-                    speed: (Math.random() - 0.5) * 2 + (index === 0 ? 1 : 0)
-                };
+        async function resolveCityToCoords(city, country) {
+            const query = encodeURIComponent(city);
+            const response = await fetch(
+                `https://secure.geonames.org/searchJSON?name_startsWith=${query}&country=${country}&featureClass=P&maxRows=1&username=demo`
+            );
+            const data = await response.json();
+            if (!data.geonames || data.geonames.length === 0) throw new Error('City not found');
+            const g = data.geonames[0];
+            return { lat: parseFloat(g.lat), lng: parseFloat(g.lng) };
+        }
+
+        function normalize360(deg) {
+            let x = deg % 360;
+            if (x < 0) x += 360;
+            return x;
+        }
+
+        function angleDiffDegrees(toDeg, fromDeg) {
+            // Возвращает разницу углов (to-from) в диапазоне [-180; +180]
+            let d = (toDeg - fromDeg) % 360;
+            if (d > 180) d -= 360;
+            if (d < -180) d += 360;
+            return d;
+        }
+
+        function atan2d(y, x) {
+            return normalize360(Math.atan2(y, x) * 180 / Math.PI);
+        }
+
+        function getTimeZoneOffsetMinutes(dateUtcInstant, timeZone) {
+            // dateUtcInstant — Date, интерпретируется как реальный UTC момент времени
+            const dtf = new Intl.DateTimeFormat('en-US', {
+                timeZone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
             });
+            const parts = dtf.formatToParts(dateUtcInstant);
+            const map = {};
+            for (const p of parts) map[p.type] = p.value;
+            const asUtcMillis = Date.UTC(
+                parseInt(map.year, 10),
+                parseInt(map.month, 10) - 1,
+                parseInt(map.day, 10),
+                parseInt(map.hour, 10),
+                parseInt(map.minute, 10),
+                parseInt(map.second, 10)
+            );
+            // offset = (zoned-as-utc) - (real-utc)
+            return (asUtcMillis - dateUtcInstant.getTime()) / 60000;
+        }
 
-            // Асцендент (симуляция)
-            const ascendant = (jd * 360 + Math.random() * 30) % 360;
-            const ascendantSign = Math.floor(ascendant / 30);
+        function zonedDateTimeToUtcDate(dateStr, timeStr, timeZone) {
+            const [y, m, d] = dateStr.split('-').map(v => parseInt(v, 10));
+            const [hh, mm] = timeStr.split(':').map(v => parseInt(v, 10));
+            // Берём "догадку" как если бы это был UTC
+            const guessUtc = new Date(Date.UTC(y, m - 1, d, hh, mm, 0));
+            let offset = getTimeZoneOffsetMinutes(guessUtc, timeZone);
+            let utc = new Date(guessUtc.getTime() - offset * 60000);
+            // второй проход на случай перехода DST
+            const offset2 = getTimeZoneOffsetMinutes(utc, timeZone);
+            if (offset2 !== offset) {
+                offset = offset2;
+                utc = new Date(guessUtc.getTime() - offset * 60000);
+            }
+            return utc;
+        }
 
-            // МС (Середина неба)
-            const mc = (ascendant + 90) % 360;
-            const mcSign = Math.floor(mc / 30);
+        function calcMcLongitude(lstDeg, epsDeg) {
+            const theta = lstDeg * Math.PI / 180;
+            const eps = epsDeg * Math.PI / 180;
+            return atan2d(Math.sin(theta), Math.cos(theta) * Math.cos(eps));
+        }
 
-            // Дома (система Плацидуса - упрощённо)
-            const houses = [];
+        function calcAscLongitude(lstDeg, latDeg, epsDeg) {
+            const theta = lstDeg * Math.PI / 180;
+            const phi = latDeg * Math.PI / 180;
+            const eps = epsDeg * Math.PI / 180;
+            // Формула для тропического Асцендента (геометрия горизонта/эклиптики)
+            const raw = atan2d(
+                -Math.cos(theta),
+                Math.sin(theta) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps)
+            );
+            return normalize360(raw + 180);
+        }
+
+        function buildPorphyryHouses(ascDeg, mcDeg) {
+            const cusps = new Array(12);
+            const desc = normalize360(ascDeg + 180);
+            const ic = normalize360(mcDeg + 180);
+
+            const arc = (from, to) => normalize360(to - from);
+
+            cusps[0] = normalize360(ascDeg); // 1
+            cusps[3] = normalize360(ic);     // 4
+            cusps[6] = normalize360(desc);   // 7
+            cusps[9] = normalize360(mcDeg);  // 10
+
+            const a14 = arc(cusps[0], cusps[3]);
+            cusps[1] = normalize360(cusps[0] + a14 / 3);       // 2
+            cusps[2] = normalize360(cusps[0] + 2 * a14 / 3);   // 3
+
+            const a47 = arc(cusps[3], cusps[6]);
+            cusps[4] = normalize360(cusps[3] + a47 / 3);       // 5
+            cusps[5] = normalize360(cusps[3] + 2 * a47 / 3);   // 6
+
+            const a710 = arc(cusps[6], cusps[9]);
+            cusps[7] = normalize360(cusps[6] + a710 / 3);      // 8
+            cusps[8] = normalize360(cusps[6] + 2 * a710 / 3);  // 9
+
+            const a101 = arc(cusps[9], cusps[0]);
+            cusps[10] = normalize360(cusps[9] + a101 / 3);     // 11
+            cusps[11] = normalize360(cusps[9] + 2 * a101 / 3); // 12
+
+            return cusps;
+        }
+
+        function getHouseIndex(planetLon, houseCusps) {
+            // houseCusps: 12 углов (1..12) в градусах, порядок домов
             for (let i = 0; i < 12; i++) {
-                houses[i] = (ascendant + i * 30) % 360;
+                const start = houseCusps[i];
+                const end = houseCusps[(i + 1) % 12];
+                let span = normalize360(end - start);
+                if (span === 0) span = 360;
+                const d = normalize360(planetLon - start);
+                if (d < span) return i + 1;
+            }
+            return 1;
+        }
+
+        function calculateNatalChart(dateStr, timeStr, timeZone, latDeg, lonDeg) {
+            if (!window.Astronomy) throw new Error('Не удалось загрузить Astronomy Engine (проверьте интернет/блокировщики).');
+
+            // UTC момент по указанному часовому поясу (IANA), учитывая DST
+            const utcDate = zonedDateTimeToUtcDate(dateStr, timeStr, timeZone);
+            const time = new Astronomy.AstroTime(utcDate);
+
+            // Сидерическое время в Гринвиче (часы) -> локальное (градусы)
+            const gstHours = Astronomy.SiderealTime(time); // 0..24
+            const lstHours = (gstHours + lonDeg / 15) % 24;
+            const lstDeg = normalize360(lstHours * 15);
+
+            // Наклон эклиптики (истинный)
+            const epsDeg = Astronomy.e_tilt(time).tobl;
+
+            // Asc / MC
+            const ascendant = calcAscLongitude(lstDeg, latDeg, epsDeg);
+            const mc = calcMcLongitude(lstDeg, epsDeg);
+
+            // Дома: Порфирий (реальная квадрантная система, зависит от Asc и MC)
+            const houses = buildPorphyryHouses(ascendant, mc);
+
+            const bodyMap = {
+                sun: Astronomy.Body.Sun,
+                moon: Astronomy.Body.Moon,
+                mercury: Astronomy.Body.Mercury,
+                venus: Astronomy.Body.Venus,
+                mars: Astronomy.Body.Mars,
+                jupiter: Astronomy.Body.Jupiter,
+                saturn: Astronomy.Body.Saturn,
+                uranus: Astronomy.Body.Uranus,
+                neptune: Astronomy.Body.Neptune,
+                pluto: Astronomy.Body.Pluto
+            };
+
+            // Планеты (геоцентрические эклиптические координаты)
+            const planets = {};
+            for (const name of PLANETS_EN) {
+                const body = bodyMap[name];
+                const vec0 = Astronomy.GeoVector(body, time, true);
+                const ecl0 = Astronomy.Ecliptic(vec0);
+                const lon0 = normalize360(ecl0.elon);
+
+                const t1 = time.AddDays(1);
+                const vec1 = Astronomy.GeoVector(body, t1, true);
+                const ecl1 = Astronomy.Ecliptic(vec1);
+                const lon1 = normalize360(ecl1.elon);
+
+                const speed = angleDiffDegrees(lon1, lon0); // °/день (с учётом ретроградности)
+
+                planets[name] = {
+                    longitude: lon0,
+                    sign: Math.floor(lon0 / 30),
+                    degree: lon0 % 30,
+                    latitude: ecl0.elat,
+                    speed: speed,
+                    house: getHouseIndex(lon0, houses)
+                };
             }
 
-            // Аспекты
             const aspects = calculateAspects(planets);
 
             return {
-                date: date,
-                planets: planets,
-                ascendant: ascendant,
-                ascendantSign: ascendantSign,
-                mc: mc,
-                mcSign: mcSign,
-                houses: houses,
-                aspects: aspects
+                dateUTC: utcDate,
+                timeZone,
+                location: { lat: latDeg, lng: lonDeg },
+                planets,
+                ascendant,
+                ascendantSign: Math.floor(ascendant / 30),
+                mc,
+                mcSign: Math.floor(mc / 30),
+                houses,
+                aspects
             };
-        }
-
-        function getJulianDay(date) {
-            const a = Math.floor((14 - (date.getMonth() + 1)) / 12);
-            const y = date.getFullYear() + 4800 - a;
-            const m = (date.getMonth() + 1) + 12 * a - 3;
-            
-            const jdn = date.getDate() + Math.floor((153 * m + 2) / 5) + 365 * y + 
-                        Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
-            
-            const jd = jdn + (date.getHours() - 12) / 24 + date.getMinutes() / 1440 + 
-                       date.getSeconds() / 86400;
-            
-            return jd;
         }
 
         function calculateAspects(planets) {
@@ -1137,8 +1299,8 @@ html_code = '''
             ctx.fillText('Asc', ascX, ascY);
 
             document.getElementById('ascendentValue').textContent = 
-                ZODIAC_RU[chartData.ascendantSign] + ' ' + 
-                ZODIAC_SYMBOLS[chartData.ascendantSign];
+                `${ZODIAC_RU[chartData.ascendantSign]} ${ZODIAC_SYMBOLS[chartData.ascendantSign]} ` +
+                `${(chartData.ascendant % 30).toFixed(1)}°`;
         }
 
         function displayResults(chartData) {
@@ -1163,13 +1325,12 @@ html_code = '''
             // Планеты в домах
             let housesHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
                 housesHtml += `
                     <div class="planet-row">
                         <div class="planet-symbol">●</div>
                         <div class="planet-info">
                             <div class="planet-name">${PLANETS_RU[name]}</div>
-                            <div class="planet-position">Дом ${house}</div>
+                            <div class="planet-position">Дом ${data.house}</div>
                         </div>
                         <div class="degree-value"></div>
                     </div>
@@ -1195,13 +1356,12 @@ html_code = '''
             // Таблица
             let tableHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const house = Math.floor((data.longitude - chartData.houses[0] + 360) % 360 / 30) + 1;
                 tableHtml += `
                     <tr>
                         <td>${PLANETS_RU[name]}</td>
                         <td>${ZODIAC_RU[data.sign]}</td>
                         <td>${data.degree.toFixed(1)}°</td>
-                        <td>${house}</td>
+                        <td>${data.house}</td>
                         <td>${data.speed > 0 ? '+' : ''}${data.speed.toFixed(2)}°/день</td>
                     </tr>
                 `;
