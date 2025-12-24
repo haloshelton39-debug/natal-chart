@@ -639,6 +639,14 @@
 
                 <form id="chartForm">
                     <div class="form-group">
+                        <label for="userName">Ваше имя</label>
+                        <input type="text" id="userName" placeholder="Например: Мария или Александр" required autocomplete="name">
+                        <small style="color: var(--text-muted); display: block; margin-top: 8px;">
+                            Имя используется для персонализации расшифровки карты
+                        </small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="birthDate">Дата рождения</label>
                         <input type="date" id="birthDate" required>
                     </div>
@@ -862,6 +870,182 @@
         let lastSelectedCoords = null;
         let lastSelectedTimeZone = null;
         let lastSelectedUtcOffsetMinutes = null;
+
+        // Классификатор русских имён для определения пола
+        function classifyRussianName(name) {
+            if (!name || typeof name !== 'string') return 'unknown';
+            
+            const normalizedName = name.trim().split(' ')[0].toLowerCase();
+            
+            // Женские имена (современный классификатор)
+            const femaleNames = [
+                // Популярные женские имена
+                'анна', 'мария', 'елена', 'наталья', 'ольга', 'татьяна', 'ирина', 'светлана',
+                'екатерина', 'юлия', 'анастасия', 'дарья', 'марина', 'валентина', 'людмила',
+                'галина', 'наталия', 'виктория', 'полина', 'вероника', 'алиса', 'софия', 'софья',
+                'артем', 'артём', 'милана', 'милена', 'василиса', 'василина', 'елизавета',
+                'кристина', 'ксения', 'диана', 'алина', 'майя', 'маргарита', 'валерия',
+                'ангелина', 'виолетта', 'карина', 'лилия', 'любовь', 'надежда', 'раиса',
+                'тамара', 'эльвира', 'яна', 'ярослава', 'арина', 'василиса', 'василина',
+                'екатерина', 'елена', 'ирина', 'мария', 'наталья', 'ольга', 'светлана',
+                'татьяна', 'юлия', 'алиса', 'алина', 'анастасия', 'ангелина', 'валерия',
+                'вероника', 'виктория', 'галина', 'дарья', 'диана', 'екатерина', 'елена',
+                'елизавета', 'ирина', 'карина', 'кристина', 'ксения', 'лилия', 'любовь',
+                'людмила', 'майя', 'марина', 'маргарита', 'мария', 'милана', 'милена',
+                'надежда', 'наталия', 'наталья', 'ольга', 'полина', 'раиса', 'светлана',
+                'софия', 'софья', 'тамара', 'татьяна', 'эльвира', 'юлия', 'яна', 'ярослава',
+                // Имена с типичными женскими окончаниями
+                'александра', 'андрея', 'василиса', 'василина', 'даниэла', 'даниэлла',
+                'даниэль', 'даниэлла', 'даниэла', 'даниэль', 'даниэлла', 'даниэла'
+            ];
+            
+            // Мужские имена (современный классификатор)
+            const maleNames = [
+                // Популярные мужские имена
+                'александр', 'дмитрий', 'максим', 'сергей', 'андрей', 'алексей', 'артём',
+                'иван', 'михаил', 'кирилл', 'николай', 'матей', 'матвей', 'рома', 'роман',
+                'владимир', 'павел', 'константин', 'игорь', 'даниил', 'данил', 'данила',
+                'евгений', 'денис', 'тимофей', 'владислав', 'илья', 'арсений', 'леонид',
+                'николай', 'степан', 'юрий', 'ярослав', 'борис', 'василий', 'виктор',
+                'георгий', 'григорий', 'дмитрий', 'егор', 'захар', 'игорь', 'кирилл',
+                'константин', 'леонид', 'максим', 'михаил', 'николай', 'олег', 'павел',
+                'пётр', 'петр', 'роман', 'руслан', 'семён', 'семен', 'сергей', 'станислав',
+                'степан', 'тимофей', 'фёдор', 'федор', 'юрий', 'ярослав', 'артём', 'артем',
+                'александр', 'алексей', 'андрей', 'антон', 'арсений', 'артём', 'артем',
+                'борис', 'василий', 'виктор', 'владимир', 'владислав', 'георгий', 'григорий',
+                'даниил', 'данил', 'данила', 'денис', 'дмитрий', 'евгений', 'егор', 'иван',
+                'игорь', 'илья', 'кирилл', 'константин', 'леонид', 'максим', 'матвей', 'матей',
+                'михаил', 'николай', 'олег', 'павел', 'пётр', 'петр', 'роман', 'рома',
+                'руслан', 'семён', 'семен', 'сергей', 'станислав', 'степан', 'тимофей',
+                'фёдор', 'федор', 'юрий', 'ярослав'
+            ];
+            
+            // Проверка по полному совпадению
+            if (femaleNames.includes(normalizedName)) return 'female';
+            if (maleNames.includes(normalizedName)) return 'male';
+            
+            // Проверка по окончаниям (для неизвестных имён)
+            const femaleEndings = ['а', 'я', 'ия', 'ья', 'ия', 'ея', 'уя', 'ая'];
+            const maleEndings = ['й', 'ь', 'н', 'р', 'л', 'к', 'с', 'т', 'в', 'м', 'д', 'г', 'з', 'б', 'п', 'ф', 'х', 'ц', 'ч', 'ш', 'щ'];
+            
+            const lastChar = normalizedName[normalizedName.length - 1];
+            const lastTwoChars = normalizedName.slice(-2);
+            const lastThreeChars = normalizedName.slice(-3);
+            
+            if (femaleEndings.includes(lastChar) || femaleEndings.includes(lastTwoChars) || femaleEndings.includes(lastThreeChars)) {
+                return 'female';
+            }
+            
+            if (maleEndings.includes(lastChar)) {
+                return 'male';
+            }
+            
+            // Если имя заканчивается на согласную (кроме 'а', 'я'), вероятно мужское
+            if (!['а', 'я', 'е', 'ё', 'и', 'о', 'у', 'ы', 'э', 'ю'].includes(lastChar)) {
+                return 'male';
+            }
+            
+            return 'unknown';
+        }
+
+        // Функция для получения гендерно-специфичных форм глаголов и местоимений
+        function getGenderForms(gender) {
+            if (gender === 'female') {
+                return {
+                    you: 'вы',
+                    youAre: 'вы',
+                    youHave: 'у вас',
+                    youNeed: 'вам нужно',
+                    youAct: 'вы действуете',
+                    youThink: 'вы мыслите',
+                    youFeel: 'вы чувствуете',
+                    youValue: 'вы цените',
+                    youLove: 'вы любите',
+                    youAreSeen: 'вас видят',
+                    your: 'ваша',
+                    yourTask: 'ваша задача',
+                    yourStrength: 'ваша сила',
+                    yourLuck: 'ваша удача',
+                    youCame: 'вы пришли',
+                    youAreBorn: 'вы родились',
+                    youAreA: 'вы',
+                    youAreThe: 'вы',
+                    verbPast: 'была',
+                    verbPastPlural: 'были',
+                    verbPresent: 'есть',
+                    verbFuture: 'будете',
+                    adjectiveEnding: 'ая',
+                    nounEnding: 'а',
+                    person: 'человек',
+                    personSeen: 'человеком',
+                    leader: 'лидер',
+                    leaderSeen: 'лидером'
+                };
+            } else if (gender === 'male') {
+                return {
+                    you: 'вы',
+                    youAre: 'вы',
+                    youHave: 'у вас',
+                    youNeed: 'вам нужно',
+                    youAct: 'вы действуете',
+                    youThink: 'вы мыслите',
+                    youFeel: 'вы чувствуете',
+                    youValue: 'вы цените',
+                    youLove: 'вы любите',
+                    youAreSeen: 'вас видят',
+                    your: 'ваша',
+                    yourTask: 'ваша задача',
+                    yourStrength: 'ваша сила',
+                    yourLuck: 'ваша удача',
+                    youCame: 'вы пришли',
+                    youAreBorn: 'вы родились',
+                    youAreA: 'вы',
+                    youAreThe: 'вы',
+                    verbPast: 'был',
+                    verbPastPlural: 'были',
+                    verbPresent: 'есть',
+                    verbFuture: 'будете',
+                    adjectiveEnding: 'ый',
+                    nounEnding: '',
+                    person: 'человек',
+                    personSeen: 'человеком',
+                    leader: 'лидер',
+                    leaderSeen: 'лидером'
+                };
+            } else {
+                // Нейтральные формы для неизвестного пола
+                return {
+                    you: 'вы',
+                    youAre: 'вы',
+                    youHave: 'у вас',
+                    youNeed: 'вам нужно',
+                    youAct: 'вы действуете',
+                    youThink: 'вы мыслите',
+                    youFeel: 'вы чувствуете',
+                    youValue: 'вы цените',
+                    youLove: 'вы любите',
+                    youAreSeen: 'вас видят',
+                    your: 'ваша',
+                    yourTask: 'ваша задача',
+                    yourStrength: 'ваша сила',
+                    yourLuck: 'ваша удача',
+                    youCame: 'вы пришли',
+                    youAreBorn: 'вы родились',
+                    youAreA: 'вы',
+                    youAreThe: 'вы',
+                    verbPast: 'были',
+                    verbPastPlural: 'были',
+                    verbPresent: 'есть',
+                    verbFuture: 'будете',
+                    adjectiveEnding: '',
+                    nounEnding: '',
+                    person: 'человек',
+                    personSeen: 'человеком',
+                    leader: 'лидер',
+                    leaderSeen: 'лидером'
+                };
+            }
+        }
 
         // Инициализация - убеждаемся, что DOM загружен
         function initApp() {
@@ -1094,15 +1278,19 @@
         async function handleSubmit(e) {
             e.preventDefault();
             
+            const userName = document.getElementById('userName').value;
             const birthDate = document.getElementById('birthDate').value;
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
             const country = document.getElementById('birthCountry').value;
             
-            if (!birthDate || !birthTime || !birthPlace || !country) {
+            if (!userName || !birthDate || !birthTime || !birthPlace || !country) {
                 showError('Пожалуйста, заполните все поля');
                 return;
             }
+            
+            // Определяем пол по имени
+            const gender = classifyRussianName(userName);
             if (!lastSelectedCoords) {
                 // Если пользователь ввёл город вручную — пробуем взять координаты по GeoNames
                 try {
@@ -1130,6 +1318,8 @@
                 // Точный расчёт: UTC по IANA TZ + координаты + реальные положения небесных тел
                 const chartData = calculateNatalChart(birthDate, birthTime, timezone, lastSelectedCoords.lat, lastSelectedCoords.lng);
                 chartData.input = {
+                    name: userName,
+                    gender: gender,
                     date: birthDate,
                     time: birthTime,
                     place: birthPlace,
@@ -1780,7 +1970,8 @@
         }
 
         // Интерпретации планет в знаках
-        function getPlanetInSignInterpretation(planetName, signIndex) {
+        function getPlanetInSignInterpretation(planetName, signIndex, gender = 'unknown') {
+            const forms = getGenderForms(gender);
             const interpretations = {
                 sun: {
                     0: "Вы — прирождённый лидер с неукротимой энергией. Ваша сила в способности начинать новое и вдохновлять других. Вы прямолинейны, честны и не боитесь конфликтов. Ваша задача — научиться терпению и дипломатии.",
@@ -1927,7 +2118,8 @@
         }
 
         // Интерпретации планет в домах
-        function getPlanetInHouseInterpretation(planetName, houseNumber) {
+        function getPlanetInHouseInterpretation(planetName, houseNumber, gender = 'unknown') {
+            const forms = getGenderForms(gender);
             const houseMeanings = {
                 1: "влияет на вашу личность и внешний облик",
                 2: "влияет на ваши финансы и материальные ценности",
@@ -1958,7 +2150,8 @@
         }
 
         // Интерпретации аспектов
-        function getAspectInterpretation(aspect) {
+        function getAspectInterpretation(aspect, gender = 'unknown') {
+            const forms = getGenderForms(gender);
             const planet1Name = PLANETS_RU[aspect.planet1];
             const planet2Name = PLANETS_RU[aspect.planet2];
             const aspectType = aspect.name;
@@ -1978,11 +2171,16 @@
         }
 
         function displayResults(chartData) {
+            // Получаем имя и пол пользователя
+            const userName = chartData.input?.name || 'Вы';
+            const gender = chartData.input?.gender || 'unknown';
+            const forms = getGenderForms(gender);
+            
             // Планеты в знаках с интерпретациями
             let planetsHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
                 const sign = ZODIAC_RU[data.sign];
-                const interpretation = getPlanetInSignInterpretation(name, data.sign);
+                const interpretation = getPlanetInSignInterpretation(name, data.sign, gender);
                 planetsHtml += `
                     <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 212, 255, 0.05); border-radius: 8px; border-left: 3px solid var(--accent);">
                         <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -2001,7 +2199,7 @@
             // Планеты в домах с интерпретациями
             let housesHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
-                const interpretation = getPlanetInHouseInterpretation(name, data.house);
+                const interpretation = getPlanetInHouseInterpretation(name, data.house, gender);
                 housesHtml += `
                     <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 212, 255, 0.05); border-radius: 8px; border-left: 3px solid var(--accent-warm);">
                         <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -2020,7 +2218,7 @@
             let aspectsHtml = '';
             const sortedAspects = [...chartData.aspects].sort((a, b) => (b.strength || 0) - (a.strength || 0));
             sortedAspects.slice(0, 10).forEach(aspect => {
-                const interpretation = getAspectInterpretation(aspect);
+                const interpretation = getAspectInterpretation(aspect, gender);
                 const strength = (aspect.strength ?? 0).toFixed(0);
                 aspectsHtml += `
                     <div style="margin-bottom: 20px; padding: 15px; background: rgba(255, 107, 157, 0.05); border-radius: 8px; border-left: 3px solid ${aspect.type === 'гармоничный' ? 'var(--success)' : 'var(--accent-warm)'};">
@@ -2106,39 +2304,101 @@
                 "Вода": "Вы чувствительны, интуитивны и эмоциональны. Вы понимаете скрытые мотивы и чувства. Ваша задача — научиться защищать свои границы."
             };
             
-            const ascendantInterpretations = {
-                0: "Вы производите впечатление активного, прямолинейного и уверенного в себе человека. Люди видят в вас лидера и первопроходца.",
-                1: "Вы производите впечатление спокойного, надёжного и практичного человека. Люди видят в вас стабильность и терпение.",
-                2: "Вы производите впечатление общительного, любознательного и лёгкого человека. Люди видят в вас интеллект и остроумие.",
-                3: "Вы производите впечатление чувствительного, заботливого и защищающего человека. Люди видят в вас эмоциональность и интуицию.",
-                4: "Вы производите впечатление яркого, творческого и гордого человека. Люди видят в вас уверенность и обаяние.",
-                5: "Вы производите впечатление скромного, практичного и заботливого человека. Люди видят в вас перфекционизм и внимание к деталям.",
-                6: "Вы производите впечатление гармоничного, дипломатичного и эстетичного человека. Люди видят в вас баланс и красоту.",
-                7: "Вы производите впечатление интенсивного, загадочного и сильного человека. Люди видят в вас глубину и страсть.",
-                8: "Вы производите впечатление оптимистичного, свободного и философского человека. Люди видят в вас энтузиазм и мудрость.",
-                9: "Вы производите впечатление серьёзного, амбициозного и дисциплинированного человека. Люди видят в вас ответственность и упорство.",
-                10: "Вы производите впечатление оригинального, независимого и дружелюбного человека. Люди видят в вас нестандартность и открытость.",
-                11: "Вы производите впечатление мечтательного, чувствительного и сострадательного человека. Люди видят в вас духовность и интуицию."
+            // Гендерно-специфичные интерпретации асцендента
+            const getAscendantInterpretation = (signIndex, gender, userName) => {
+                const interpretations = {
+                    0: gender === 'female' 
+                        ? `${userName}, вы производите впечатление активной, прямолинейной и уверенной в себе женщины. Люди видят в вас лидера и первопроходца.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление активного, прямолинейного и уверенного в себе мужчины. Люди видят в вас лидера и первопроходца.`
+                            : `Вы производите впечатление активного, прямолинейного и уверенного в себе человека. Люди видят в вас лидера и первопроходца.`,
+                    1: gender === 'female'
+                        ? `${userName}, вы производите впечатление спокойной, надёжной и практичной женщины. Люди видят в вас стабильность и терпение.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление спокойного, надёжного и практичного мужчины. Люди видят в вас стабильность и терпение.`
+                            : `Вы производите впечатление спокойного, надёжного и практичного человека. Люди видят в вас стабильность и терпение.`,
+                    2: gender === 'female'
+                        ? `${userName}, вы производите впечатление общительной, любознательной и лёгкой женщины. Люди видят в вас интеллект и остроумие.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление общительного, любознательного и лёгкого мужчины. Люди видят в вас интеллект и остроумие.`
+                            : `Вы производите впечатление общительного, любознательного и лёгкого человека. Люди видят в вас интеллект и остроумие.`,
+                    3: gender === 'female'
+                        ? `${userName}, вы производите впечатление чувствительной, заботливой и защищающей женщины. Люди видят в вас эмоциональность и интуицию.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление чувствительного, заботливого и защищающего мужчины. Люди видят в вас эмоциональность и интуицию.`
+                            : `Вы производите впечатление чувствительного, заботливого и защищающего человека. Люди видят в вас эмоциональность и интуицию.`,
+                    4: gender === 'female'
+                        ? `${userName}, вы производите впечатление яркой, творческой и гордой женщины. Люди видят в вас уверенность и обаяние.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление яркого, творческого и гордого мужчины. Люди видят в вас уверенность и обаяние.`
+                            : `Вы производите впечатление яркого, творческого и гордого человека. Люди видят в вас уверенность и обаяние.`,
+                    5: gender === 'female'
+                        ? `${userName}, вы производите впечатление скромной, практичной и заботливой женщины. Люди видят в вас перфекционизм и внимание к деталям.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление скромного, практичного и заботливого мужчины. Люди видят в вас перфекционизм и внимание к деталям.`
+                            : `Вы производите впечатление скромного, практичного и заботливого человека. Люди видят в вас перфекционизм и внимание к деталям.`,
+                    6: gender === 'female'
+                        ? `${userName}, вы производите впечатление гармоничной, дипломатичной и эстетичной женщины. Люди видят в вас баланс и красоту.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление гармоничного, дипломатичного и эстетичного мужчины. Люди видят в вас баланс и красоту.`
+                            : `Вы производите впечатление гармоничного, дипломатичного и эстетичного человека. Люди видят в вас баланс и красоту.`,
+                    7: gender === 'female'
+                        ? `${userName}, вы производите впечатление интенсивной, загадочной и сильной женщины. Люди видят в вас глубину и страсть.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление интенсивного, загадочного и сильного мужчины. Люди видят в вас глубину и страсть.`
+                            : `Вы производите впечатление интенсивного, загадочного и сильного человека. Люди видят в вас глубину и страсть.`,
+                    8: gender === 'female'
+                        ? `${userName}, вы производите впечатление оптимистичной, свободной и философской женщины. Люди видят в вас энтузиазм и мудрость.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление оптимистичного, свободного и философского мужчины. Люди видят в вас энтузиазм и мудрость.`
+                            : `Вы производите впечатление оптимистичного, свободного и философского человека. Люди видят в вас энтузиазм и мудрость.`,
+                    9: gender === 'female'
+                        ? `${userName}, вы производите впечатление серьёзной, амбициозной и дисциплинированной женщины. Люди видят в вас ответственность и упорство.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление серьёзного, амбициозного и дисциплинированного мужчины. Люди видят в вас ответственность и упорство.`
+                            : `Вы производите впечатление серьёзного, амбициозного и дисциплинированного человека. Люди видят в вас ответственность и упорство.`,
+                    10: gender === 'female'
+                        ? `${userName}, вы производите впечатление оригинальной, независимой и дружелюбной женщины. Люди видят в вас нестандартность и открытость.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление оригинального, независимого и дружелюбного мужчины. Люди видят в вас нестандартность и открытость.`
+                            : `Вы производите впечатление оригинального, независимого и дружелюбного человека. Люди видят в вас нестандартность и открытость.`,
+                    11: gender === 'female'
+                        ? `${userName}, вы производите впечатление мечтательной, чувствительной и сострадательной женщины. Люди видят в вас духовность и интуицию.`
+                        : gender === 'male'
+                            ? `${userName}, вы производите впечатление мечтательного, чувствительного и сострадательного мужчины. Люди видят в вас духовность и интуицию.`
+                            : `Вы производите впечатление мечтательного, чувствительного и сострадательного человека. Люди видят в вас духовность и интуицию.`
+                };
+                return interpretations[signIndex] || `${userName}, вы производите уникальное впечатление.`;
             };
             
             // Подсчёт гармоничных и напряжённых аспектов
             const harmoniousAspects = chartData.aspects.filter(a => a.type === 'гармоничный').length;
             const tenseAspects = chartData.aspects.filter(a => a.type === 'напряжённый').length;
             
+            // Гендерно-специфичные приветствия
+            const greeting = gender === 'female' 
+                ? `Дорогая ${userName},` 
+                : gender === 'male' 
+                    ? `Дорогой ${userName},`
+                    : `${userName},`;
+            
             let personalityText = `
                 <div style="margin-bottom: 20px; padding: 25px; background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(255, 107, 157, 0.15)); border-radius: 15px; border: 1px solid rgba(0, 212, 255, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);">
                     <div style="font-size: 1.5em; font-weight: 700; color: var(--accent); margin-bottom: 20px; text-align: center; text-shadow: 0 2px 10px rgba(0, 212, 255, 0.3);">
-                        Ваша уникальная личность
+                        ${userName}, ваша уникальная личность
+                    </div>
+                    <div style="color: var(--text); line-height: 1.9; margin-bottom: 15px; font-size: 1.05em; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent-warm);">
+                        ${greeting} ваша натальная карта раскрывает уникальные грани вашей личности и потенциала.
                     </div>
                     <div style="color: var(--text); line-height: 1.9; margin-bottom: 20px; font-size: 1.05em;">
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent);">
-                            <strong style="color: var(--accent);">Ваш асцендент в ${ascendantSign}</strong> — это то, как вас видят другие люди при первой встрече. ${ascendantInterpretations[chartData.ascendantSign] || 'Вы производите уникальное впечатление.'}
+                            <strong style="color: var(--accent);">Ваш асцендент в ${ascendantSign}</strong> — это то, как вас видят другие люди при первой встрече. ${getAscendantInterpretation(chartData.ascendantSign, gender, userName)}
                         </p>
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent-warm);">
-                            <strong style="color: var(--accent-warm);">Ваше Солнце в ${sunSign}</strong> — это ваша суть, ваше истинное «я». Это то, кем вы являетесь в глубине души, ваша жизненная сила и цель. Вы пришли в этот мир, чтобы ${getSunPurpose(chartData.planets.sun.sign)}.
+                            <strong style="color: var(--accent-warm);">Ваше Солнце в ${sunSign}</strong> — это ваша суть, ваше истинное «я», ${userName}. Это то, кем вы являетесь в глубине души, ваша жизненная сила и цель. Вы пришли в этот мир, чтобы ${getSunPurpose(chartData.planets.sun.sign, gender)}.
                         </p>
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent);">
-                            <strong style="color: var(--accent);">Ваша Луна в ${moonSign}</strong> — это ваши эмоции, потребности и внутренний мир. Это то, что вас успокаивает и что вам нужно для эмоционального комфорта. Эмоционально вы ${getMoonEmotion(chartData.planets.moon.sign)}.
+                            <strong style="color: var(--accent);">Ваша Луна в ${moonSign}</strong> — это ваши эмоции, потребности и внутренний мир, ${userName}. Это то, что вас успокаивает и что вам нужно для эмоционального комфорта. Эмоционально вы ${getMoonEmotion(chartData.planets.moon.sign, gender)}.
                         </p>
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--success);">
                             <strong style="color: var(--success);">Доминирующий элемент: ${dominantElement}</strong> — ${elementDescriptions[dominantElement]}
@@ -2161,7 +2421,8 @@
             fillTechnicalTable(chartData);
         }
 
-        function getSunPurpose(signIndex) {
+        function getSunPurpose(signIndex, gender = 'unknown') {
+            const forms = getGenderForms(gender);
             const purposes = {
                 0: "быть первопроходцем и вдохновлять других на действие",
                 1: "создавать красоту и стабильность в мире",
@@ -2179,7 +2440,8 @@
             return purposes[signIndex] || "раскрывать свой уникальный потенциал";
         }
 
-        function getMoonEmotion(signIndex) {
+        function getMoonEmotion(signIndex, gender = 'unknown') {
+            const forms = getGenderForms(gender);
             const emotions = {
                 0: "нуждаетесь в действии и свободе выражения",
                 1: "нуждаетесь в стабильности и комфорте",
