@@ -795,9 +795,27 @@
     </div>
 
     <!-- Astronomy Engine: точные положения планет/Луны/Солнца (геоцентрически) -->
-    <script>var exports = {}; // Polyfill for CommonJS environment in browser</script>
+    <script>
+        // Polyfill for CommonJS environment in browser
+        var exports = {};
+        // Ensure exports is available globally
+        if (typeof window !== 'undefined') {
+            window.exports = exports;
+        }
+    </script>
     <script src="vendor/astronomy-engine.min.js"></script>
-    <script>window.Astronomy = exports;</script>
+    <script>
+        // Make Astronomy available globally
+        if (typeof exports !== 'undefined' && exports) {
+            window.Astronomy = exports;
+            // Verify critical functions are available
+            if (!window.Astronomy.AstroTime || !window.Astronomy.Body || !window.Astronomy.GeoVector) {
+                console.error('Astronomy Engine не загружен полностью. Проверьте файл vendor/astronomy-engine.min.js');
+            }
+        } else {
+            console.error('Не удалось загрузить Astronomy Engine. Проверьте путь к файлу vendor/astronomy-engine.min.js');
+        }
+    </script>
 
     <script>
         const PLANETS_EN = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
@@ -836,17 +854,38 @@
         let lastSelectedTimeZone = null;
         let lastSelectedUtcOffsetMinutes = null;
 
-        // Инициализация
-        document.getElementById('chartForm').addEventListener('submit', handleSubmit);
-        document.getElementById('birthPlace').addEventListener('input', debounce(handleCitySearch, 300));
-        document.getElementById('birthCountry').addEventListener('change', () => {
-            // Смена страны инвалидирует ранее выбранный город/таймзону
-            lastSelectedCoords = null;
-            lastSelectedTimeZone = null;
-            lastSelectedUtcOffsetMinutes = null;
-            document.getElementById('timezoneInfo').innerHTML =
-                'Часовой пояс будет определён автоматически по выбранному городу и стране';
-        });
+        // Инициализация - убеждаемся, что DOM загружен
+        function initApp() {
+            const chartForm = document.getElementById('chartForm');
+            const birthPlace = document.getElementById('birthPlace');
+            const birthCountry = document.getElementById('birthCountry');
+            
+            if (!chartForm || !birthPlace || !birthCountry) {
+                console.error('Не удалось найти элементы формы. Проверьте структуру HTML.');
+                return;
+            }
+            
+            chartForm.addEventListener('submit', handleSubmit);
+            birthPlace.addEventListener('input', debounce(handleCitySearch, 300));
+            birthCountry.addEventListener('change', () => {
+                // Смена страны инвалидирует ранее выбранный город/таймзону
+                lastSelectedCoords = null;
+                lastSelectedTimeZone = null;
+                lastSelectedUtcOffsetMinutes = null;
+                const timezoneInfo = document.getElementById('timezoneInfo');
+                if (timezoneInfo) {
+                    timezoneInfo.innerHTML =
+                        'Часовой пояс будет определён автоматически по выбранному городу и стране';
+                }
+            });
+        }
+        
+        // Запускаем инициализацию после загрузки DOM
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
 
         function updateTimezoneInfoForCurrentInputs() {
             if (!lastSelectedTimeZone) return;
@@ -1008,7 +1047,8 @@
             }
         }
 
-        async function selectCity(name, adminName1, lat, lng, country) {
+        // Делаем selectCity доступной глобально для onclick обработчиков
+        window.selectCity = async function selectCity(name, adminName1, lat, lng, country) {
             // Проставляем читаемый формат (город + регион), чтобы было понятно, что именно выбрано
             document.getElementById('birthPlace').value = adminName1 ? `${name}, ${adminName1}` : name;
             document.getElementById('birthCountry').value = country;
@@ -1867,11 +1907,12 @@
             setTimeout(() => el.style.display = 'none', 3000);
         }
 
-        function toggleModal() {
+        // Делаем функции доступными глобально для onclick обработчиков
+        window.toggleModal = function toggleModal() {
             document.getElementById('settingsModal').classList.toggle('active');
         }
 
-        function saveAsImage() {
+        window.saveAsImage = function saveAsImage() {
             if (!currentChart) return;
             const canvas = document.getElementById('natalChart');
             const link = document.createElement('a');
@@ -1880,11 +1921,11 @@
             link.click();
         }
 
-        function printChart() {
+        window.printChart = function printChart() {
             window.print();
         }
 
-        function shareChart() {
+        window.shareChart = function shareChart() {
             const url = window.location.href;
             const text = currentChart
                 ? `Натальная карта рассчитана: Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}`
@@ -1912,8 +1953,20 @@
             window.prompt('Скопируйте ссылку:', url);
         }
 
-        // Инициализация
-        document.getElementById('birthDate').valueAsDate = new Date();
+        // Инициализация даты по умолчанию
+        function initDefaultDate() {
+            const birthDateInput = document.getElementById('birthDate');
+            if (birthDateInput) {
+                birthDateInput.valueAsDate = new Date();
+            }
+        }
+        
+        // Запускаем инициализацию даты после загрузки DOM
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initDefaultDate);
+        } else {
+            initDefaultDate();
+        }
     </script>
 </body>
 </html>
