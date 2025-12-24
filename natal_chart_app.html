@@ -756,6 +756,11 @@
             </div>
 
             <div class="result-card">
+                <h3>🧮 Астродина: сила и гармония</h3>
+                <div id="astrodinaAnalysis"></div>
+            </div>
+
+            <div class="result-card">
                 <h3>🎯 Интерпретация</h3>
                 <div id="interpretation"></div>
             </div>
@@ -1807,6 +1812,115 @@
             return aspects;
         }
 
+        // Астродина (упрощённая метрика по аспектам):
+        // - СИЛА: насколько "точно" собраны аспекты (по орбам) с учетом веса типа аспекта, 0..100%
+        // - ГАРМОНИЯ: баланс гармоничных и напряжённых аспектов, -100..+100
+        function analyzeAstrodina(chartData) {
+            const aspects = Array.isArray(chartData?.aspects) ? chartData.aspects : [];
+            const planets = chartData?.planets || {};
+
+            const orbMaxByAngle = { 0: 8, 60: 6, 90: 6, 120: 8, 180: 8 };
+            const weightByAngle = { 0: 1.15, 60: 0.75, 90: 1.0, 120: 0.85, 180: 1.0 };
+
+            let sum = 0;
+            let maxSum = 0;
+            let harm = 0;
+            let tense = 0;
+
+            const perPlanet = {};
+            for (const k of Object.keys(planets)) perPlanet[k] = 0;
+
+            for (const a of aspects) {
+                const angle = Number(a?.angle);
+                const orbMax = orbMaxByAngle[angle] ?? 8;
+                const weight = weightByAngle[angle] ?? 1.0;
+                const orb = Number(a?.orb);
+                if (!Number.isFinite(orb)) continue;
+
+                const intensity = clamp(1 - orb / orbMax, 0, 1); // 0..1
+                const contrib = intensity * weight;
+
+                sum += contrib;
+                maxSum += weight;
+                if (a?.type === 'гармоничный') harm += contrib;
+                else tense += contrib;
+
+                const p1 = a?.planet1;
+                const p2 = a?.planet2;
+                if (p1 && perPlanet[p1] !== undefined) perPlanet[p1] += contrib;
+                if (p2 && perPlanet[p2] !== undefined) perPlanet[p2] += contrib;
+            }
+
+            const strengthPct = maxSum > 0 ? (sum / maxSum) * 100 : 0;
+            const denom = harm + tense;
+            const harmonyPct = denom > 0 ? ((harm - tense) / denom) * 100 : 0;
+            const harmonyShare = denom > 0 ? (harm / denom) * 100 : 0;
+
+            const topPlanets = Object.entries(perPlanet)
+                .filter(([, v]) => Number.isFinite(v) && v > 0)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4)
+                .map(([k, v]) => ({ key: k, score: v }));
+
+            const strengthLabel =
+                strengthPct >= 75 ? 'высокая' :
+                strengthPct >= 55 ? 'средняя' :
+                strengthPct > 0 ? 'низкая' : 'не определена';
+
+            const harmonyLabel =
+                harmonyPct >= 35 ? 'гармоничная' :
+                harmonyPct <= -35 ? 'напряжённая' :
+                denom > 0 ? 'смешанная' : 'не определена';
+
+            return {
+                strengthPct,
+                harmonyPct,
+                harmonyShare,
+                aspectsCount: aspects.length,
+                strengthLabel,
+                harmonyLabel,
+                topPlanets
+            };
+        }
+
+        function buildAstrodinaHtml(chartData) {
+            const a = analyzeAstrodina(chartData);
+            const strength = clamp(a.strengthPct, 0, 100);
+            const harmonySigned = clamp(a.harmonyPct, -100, 100);
+            const harmonyGauge = clamp((harmonySigned + 100) / 2, 0, 100); // 0..100 (лево=напряж, право=гарм)
+
+            const top = a.topPlanets.length
+                ? a.topPlanets.map(p => `${PLANETS_RU[p.key]} ${PLANET_SYMBOLS[p.key] || ''}`).join(', ')
+                : '—';
+
+            const bar = (value, color) => `
+                <div style="height: 10px; background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden; margin-top: 6px;">
+                    <div style="height: 100%; width: ${value.toFixed(0)}%; background: ${color};"></div>
+                </div>
+            `;
+
+            return `
+                <div style="color: var(--text-muted); line-height: 1.5;">
+                    <div><strong style="color: var(--text);">Сила</strong>: ${strength.toFixed(0)}% <span style="color: var(--text-muted);">(${escapeHtml(a.strengthLabel)})</span></div>
+                    ${bar(strength, 'linear-gradient(90deg, var(--accent), #0099cc)')}
+
+                    <div style="margin-top: 12px;">
+                        <div><strong style="color: var(--text);">Гармония</strong>: ${harmonySigned.toFixed(0)} <span style="color: var(--text-muted);">(-100…+100, ${escapeHtml(a.harmonyLabel)})</span></div>
+                        ${bar(harmonyGauge, 'linear-gradient(90deg, #ff5555, var(--accent-warm), var(--success))')}
+                        <div style="margin-top: 6px; font-size: 0.9em;">
+                            Доля гармоничных аспектов (с учётом орбов): <strong style="color: var(--text);">${a.harmonyShare.toFixed(0)}%</strong>.
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 12px; font-size: 0.9em;">
+                        <strong style="color: var(--text);">Ключевые «включающие» планеты:</strong> ${escapeHtml(top)}.
+                        <br>
+                        <span style="color: var(--text-muted);">Основано на ${a.aspectsCount} аспект(ах): чем точнее орбы, тем выше Сила; чем больше вес гармоничных — тем выше Гармония.</span>
+                    </div>
+                </div>
+            `;
+        }
+
         function getChartRulerByAscendant(ascSign) {
             // Управители знаков (включаем современный как доп. для Скорпиона/Водолея/Рыб).
             const rulers = {
@@ -1978,6 +2092,10 @@
             });
             document.getElementById('aspectsList').innerHTML = aspectsHtml;
 
+            // Астродина: сила и гармония
+            const astroEl = document.getElementById('astrodinaAnalysis');
+            if (astroEl) astroEl.innerHTML = buildAstrodinaHtml(chartData);
+
             // Таблица
             let tableHtml = '';
             Object.entries(chartData.planets).forEach(([name, data]) => {
@@ -2051,6 +2169,10 @@
                 .map(a => `${PLANETS_RU[a.planet1]} ${a.symbol} ${PLANETS_RU[a.planet2]} (орб ${a.orb}°)`)
                 .join(', ');
 
+            const astro = analyzeAstrodina(chartData);
+            const astroStrength = clamp(astro.strengthPct, 0, 100).toFixed(0);
+            const astroHarmony = clamp(astro.harmonyPct, -100, 100).toFixed(0);
+
             return `
                 <div style="color: var(--text-muted); font-size: 0.95em; margin-bottom: 10px;">
                     <strong style="color: var(--text);">${escapeHtml(chartData.personName)}</strong>,
@@ -2110,6 +2232,14 @@
                         ${tenseAspects ? `<br><br><strong style="color: var(--text);">Ваши напряжённые аспекты (топ):</strong> ${escapeHtml(tenseAspects)}.` : ''}
                         <br><br>
                         Универсальный принцип проработки: вместо «борьбы с аспектом» — дать ему понятный канал (действие/практика/правило), чтобы энергия не шла в самосаботаж.
+                    </div>
+                </div>
+
+                <div style="margin-top: 14px;">
+                    <div style="color: var(--accent); font-weight: 700; margin-bottom: 6px;">ж) Астродина: сила и гармония</div>
+                    <div style="color: var(--text-muted);">
+                        Сила: <strong style="color: var(--text);">${astroStrength}%</strong> (точность аспектов по орбам).<br>
+                        Гармония: <strong style="color: var(--text);">${astroHarmony}</strong> (-100…+100, баланс гармоничных/напряжённых).
                     </div>
                 </div>
             `;
