@@ -1001,6 +1001,28 @@
             }
 
             try {
+                // Фолбэк: если вместо города введены координаты, разрешаем работу без геокодинга.
+                // Форматы: "55.7558, 37.6173" или "55.7558 37.6173"
+                const coords = parseLatLngFromString(query);
+                if (coords) {
+                    document.getElementById('citySuggestions').style.display = 'none';
+                    lastSelectedCoords = coords;
+                    lastSelectedPlaceMeta = {
+                        name: query,
+                        adminName1: '',
+                        countryCode: document.getElementById('birthCountry').value || '',
+                        countryName: ''
+                    };
+                    document.getElementById('detectTimezoneBtn').disabled = false;
+                    if (!document.getElementById('timezoneManual').checked) {
+                        getTimezone(coords.lat, coords.lng);
+                    } else {
+                        document.getElementById('timezoneInfo').innerHTML =
+                            `<strong>Координаты заданы вручную.</strong> Нажмите «Определить» для часового пояса или введите вручную.`;
+                    }
+                    return;
+                }
+
                 const countryCode = document.getElementById('birthCountry').value || 'RU';
                 const candidates = await searchCities({ query, countryCode });
                 renderCitySuggestions(candidates);
@@ -1077,6 +1099,18 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        function parseLatLngFromString(input) {
+            const s = String(input ?? '').trim();
+            // 2 числа, разделитель: запятая или пробел(ы)
+            const m = s.match(/^\s*([+-]?\d{1,2}(?:\.\d+)?)\s*[, ]\s*([+-]?\d{1,3}(?:\.\d+)?)\s*$/);
+            if (!m) return null;
+            const lat = Number(m[1]);
+            const lng = Number(m[2]);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+            return { lat, lng };
         }
 
         // Нормализация TZ для Luxon:
@@ -1289,8 +1323,21 @@
             }
 
             if (!lastSelectedCoords) {
-                showError('Пожалуйста, выберите город из подсказок (нужны точные координаты для корректного расчёта).');
-                return;
+                // Последний шанс: пользователь мог ввести координаты вручную в поле города.
+                const fallbackCoords = parseLatLngFromString(String(birthPlace || '').trim());
+                if (fallbackCoords) {
+                    lastSelectedCoords = fallbackCoords;
+                    lastSelectedPlaceMeta = lastSelectedPlaceMeta || {
+                        name: birthPlace,
+                        adminName1: '',
+                        countryCode: document.getElementById('birthCountry').value || '',
+                        countryName: ''
+                    };
+                    document.getElementById('detectTimezoneBtn').disabled = false;
+                } else {
+                    showError('Пожалуйста, выберите город из подсказок (нужны координаты) или введите координаты в формате "55.7558, 37.6173".');
+                    return;
+                }
             }
 
             document.getElementById('loading').classList.add('active');
@@ -1308,12 +1355,14 @@
                 });
                 currentChart = chartData;
 
-                displayChart(chartData);
-                displayResults(chartData);
-
+                // ВАЖНО: сначала показываем секции, затем рисуем canvas.
+                // Иначе при display:none размеры canvas = 0×0 и график не отображается.
                 document.getElementById('chartSection').classList.add('active');
                 document.getElementById('resultsSection').style.display = 'grid';
                 document.getElementById('tableSection').style.display = 'block';
+
+                displayResults(chartData);
+                requestAnimationFrame(() => displayChart(chartData));
 
                 showSuccess('Натальная карта рассчитана успешно!');
             } catch (error) {
@@ -1544,8 +1593,9 @@
             const canvas = document.getElementById('natalChart');
             const ctx = canvas.getContext('2d');
 
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.floor(rect.width) || canvas.offsetWidth || 600;
+            canvas.height = Math.floor(rect.height) || canvas.offsetHeight || 600;
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
@@ -1625,6 +1675,13 @@
                 ZODIAC_RU[chartData.ascendantSign] + ' ' + 
                 ZODIAC_SYMBOLS[chartData.ascendantSign];
         }
+
+        // Перерисовываем космограмму при изменении размеров окна
+        window.addEventListener('resize', () => {
+            if (currentChart && document.getElementById('chartSection')?.classList.contains('active')) {
+                requestAnimationFrame(() => displayChart(currentChart));
+            }
+        });
 
         function displayResults(chartData) {
             const title = document.getElementById('cosmogramTitle');
