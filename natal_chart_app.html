@@ -795,7 +795,9 @@
     </div>
 
     <!-- Astronomy Engine: точные положения планет/Луны/Солнца (геоцентрически) -->
+    <script>var exports = {}; // Polyfill for CommonJS environment in browser</script>
     <script src="vendor/astronomy-engine.min.js"></script>
+    <script>window.Astronomy = exports;</script>
 
     <script>
         const PLANETS_EN = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
