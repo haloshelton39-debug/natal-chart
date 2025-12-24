@@ -901,7 +901,11 @@
 
         // Инициализация
         document.getElementById('chartForm').addEventListener('submit', handleSubmit);
-        document.getElementById('birthPlace').addEventListener('input', debounce(handleCitySearch, 300));
+        const debouncedCitySearch = debounce(handleCitySearch, 300);
+        document.getElementById('birthPlace').addEventListener('input', (e) => {
+            handleBirthPlaceTyping(e);
+            debouncedCitySearch(e);
+        });
         document.getElementById('birthCountry').addEventListener('change', () => {
             // При смене страны сбрасываем выбранные координаты, чтобы не было несоответствий.
             lastSelectedCoords = null;
@@ -921,6 +925,31 @@
         document.getElementById('timezoneManual').addEventListener('change', (e) => {
             setTimezoneManualMode(e.target.checked);
         });
+
+        // Важная защита корректности вводных:
+        // если пользователь вручную меняет поле "город" после выбора из подсказок,
+        // координаты/таймзона могут остаться от прошлого города. Поэтому сбрасываем "привязку"
+        // при любом ручном редактировании (кроме ситуации, когда введены координаты).
+        function handleBirthPlaceTyping(e) {
+            const value = String(e?.target?.value ?? '').trim();
+            const coords = parseLatLngFromString(value);
+            // Если введены координаты — дальше обработает handleCitySearch.
+            if (coords) return;
+
+            // Если текст не совпадает с ранее выбранным местом — сбрасываем координаты.
+            const selectedName = String(lastSelectedPlaceMeta?.name ?? '').trim();
+            if (!selectedName || value !== selectedName) {
+                lastSelectedCoords = null;
+                lastSelectedPlaceMeta = null;
+                document.getElementById('detectTimezoneBtn').disabled = true;
+
+                if (!document.getElementById('timezoneManual').checked) {
+                    document.getElementById('timezone').value = '';
+                    document.getElementById('timezoneInfo').innerHTML =
+                        `Часовой пояс будет определён автоматически при выборе города`;
+                }
+            }
+        }
 
         function setSelectIfHasOption(selectEl, value) {
             const v = String(value ?? '').toUpperCase();
@@ -1380,6 +1409,19 @@
         function calculateNatalChart({ personName, birthDate, birthTime, timezone, placeInput, placeMeta, coords }) {
             const { DateTime } = luxon;
 
+            // Валидируем TZ заранее, чтобы дать понятную ошибку (важно для соответствия времени расчётам).
+            const zoneProbe = DateTime.now().setZone(timezone);
+            if (!zoneProbe.isValid) {
+                throw new Error('Некорректный часовой пояс. Используйте IANA (например, Europe/Moscow) или корректное смещение (например, UTC+03:00).');
+            }
+
+            // Валидируем координаты: они критичны для ASC/домов и должны соответствовать месту.
+            const lat = Number(coords?.lat);
+            const lng = Number(coords?.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+                throw new Error('Некорректные координаты места рождения. Выберите город из подсказок или введите координаты в формате "55.7558, 37.6173".');
+            }
+
             // Время рождения в указанной IANA TZ → UTC (учитывает DST).
             const dtLocal = DateTime.fromISO(`${birthDate}T${birthTime}`, { zone: timezone });
             if (!dtLocal.isValid) {
@@ -1433,15 +1475,15 @@
             }
 
             // Асцендент / МС (геометрически, от звёздного времени, места и наклона эклиптики).
-            const ascendant = calculateAscendant(utcDate, coords.lat, coords.lng);
+            const ascendant = calculateAscendant(utcDate, lat, lng);
             const ascendantSign = Math.floor(ascendant / 30);
-            const mc = calculateMidheaven(utcDate, coords.lng);
+            const mc = calculateMidheaven(utcDate, lng);
             const mcSign = Math.floor(mc / 30);
 
             // Дома: система Плацидуса (Placidus).
             // Важно: для широт близких к полярным кругам Плацидус может быть неустойчив —
             // в таких случаях применяется фолбэк на порфирий (деление квадрантов по дуге).
-            const houses = calculateHousesPlacidus(utcDate, coords.lat, coords.lng, ascendant, mc);
+            const houses = calculateHousesPlacidus(utcDate, lat, lng, ascendant, mc);
 
             const aspects = calculateAspects(planets);
             const chartRuler = getChartRulerByAscendant(ascendantSign);
@@ -1460,8 +1502,8 @@
                     name: placeMeta?.name || placeInput,
                     adminName1: placeMeta?.adminName1 || '',
                     countryCode: placeMeta?.countryCode || document.getElementById('birthCountry').value || '',
-                    lat: coords.lat,
-                    lng: coords.lng
+                    lat,
+                    lng
                 },
                 planets,
                 ascendant,
