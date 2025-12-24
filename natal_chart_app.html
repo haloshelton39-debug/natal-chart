@@ -17,28 +17,28 @@
         }
 
         :root {
-            --primary: #2a2a3e;
-            --secondary: #1a1a28;
-            --accent: #00d4ff;
-            --accent-warm: #ff6b9d;
-            --text: #e0e0e0;
-            --text-muted: #a0a0a0;
-            --element-fire: #ff4444;
-            --element-earth: #44cc44;
-            --element-air: #ffcc44;
-            --element-water: #4488ff;
-            --success: #44dd77;
-            --error: #ff5555;
+            --primary: #ffffff;
+            --secondary: #faf9f7;
+            --accent: #b8a9d4;
+            --accent-warm: #ffc5d9;
+            --text: #4a4a4a;
+            --text-muted: #8a8a8a;
+            --element-fire: #ffb3ba;
+            --element-earth: #bae8c4;
+            --element-air: #ffe4b3;
+            --element-water: #b8d4e6;
+            --success: #a8d5ba;
+            --error: #ffb3ba;
             --tap-target: 44px;
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--secondary) 0%, #0f0f1a 100%);
+            background: linear-gradient(135deg, var(--secondary) 0%, #f5f3f0 100%);
             color: var(--text);
             min-height: 100vh;
             overflow-x: hidden;
-            line-height: 1.55;
+            line-height: 1.6;
             text-rendering: optimizeLegibility;
         }
 
@@ -48,13 +48,14 @@
             top: 12px;
             padding: 10px 12px;
             border-radius: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 1px solid rgba(0, 212, 255, 0.35);
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(184, 169, 212, 0.4);
             color: var(--text);
             text-decoration: none;
             transform: translateY(-200%);
             transition: transform 0.2s ease;
             z-index: 2000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .skip-link:focus {
@@ -63,7 +64,7 @@
 
         :focus-visible {
             outline: none;
-            box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.25);
+            box-shadow: 0 0 0 3px rgba(184, 169, 212, 0.3);
         }
 
         .container {
@@ -75,8 +76,8 @@
         header {
             text-align: center;
             margin-bottom: 40px;
-            padding: 30px 20px;
-            border-bottom: 2px solid var(--accent);
+            padding: 40px 20px;
+            border-bottom: 2px solid rgba(184, 169, 212, 0.2);
         }
 
         header h1 {
@@ -86,11 +87,14 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            font-weight: 300;
+            letter-spacing: -1px;
         }
 
         header p {
             color: var(--text-muted);
             font-size: 1.1em;
+            font-weight: 300;
         }
 
         .main-layout {
@@ -101,11 +105,12 @@
         }
 
         .form-section {
-            background: var(--primary);
-            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 20px;
             padding: 30px;
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(184, 169, 212, 0.15);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            backdrop-filter: blur(10px);
         }
 
         .form-group {
@@ -115,8 +120,8 @@
         label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--accent);
+            font-weight: 500;
+            color: #8a7ba8;
             font-size: 0.95em;
             text-transform: none;
             letter-spacing: 0.2px;
@@ -125,9 +130,9 @@
         input, select {
             width: 100%;
             padding: 12px 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(184, 169, 212, 0.25);
+            border-radius: 10px;
             color: var(--text);
             font-size: 1em;
             transition: all 0.3s ease;
@@ -137,9 +142,9 @@
 
         input:focus, select:focus {
             outline: none;
-            background: rgba(0, 212, 255, 0.1);
+            background: rgba(255, 255, 255, 1);
             border-color: var(--accent);
-            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+            box-shadow: 0 0 0 3px rgba(184, 169, 212, 0.15);
         }
 
         input::placeholder {
@@ -147,21 +152,21 @@
         }
 
         .timezone-info {
-            background: rgba(0, 212, 255, 0.1);
+            background: rgba(184, 169, 212, 0.1);
             border-left: 3px solid var(--accent);
             padding: 12px 15px;
-            border-radius: 4px;
+            border-radius: 6px;
             margin-top: 8px;
             font-size: 0.9em;
             color: var(--text-muted);
         }
 
         .suggestions {
-            background: rgba(26, 26, 40, 0.95);
-            border: 1px solid rgba(0, 212, 255, 0.25);
-            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(184, 169, 212, 0.2);
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
         }
 
         .suggestion-item {
@@ -176,7 +181,7 @@
             text-transform: none;
             letter-spacing: 0;
             flex: 0 0 auto;
-            border-bottom: 1px solid rgba(0, 212, 255, 0.08);
+            border-bottom: 1px solid rgba(184, 169, 212, 0.1);
             min-height: var(--tap-target);
             touch-action: manipulation;
         }
@@ -188,7 +193,7 @@
         .suggestion-item:hover,
         .suggestion-item:focus {
             outline: none;
-            background: rgba(0, 212, 255, 0.12);
+            background: rgba(184, 169, 212, 0.1);
         }
 
         .button-group {
@@ -201,36 +206,36 @@
             flex: 1;
             padding: 15px 20px;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 1em;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
             transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            text-transform: none;
+            letter-spacing: 0.5px;
             min-height: var(--tap-target);
             touch-action: manipulation;
         }
 
         .btn-primary {
-            background: linear-gradient(90deg, var(--accent), #0099cc);
+            background: linear-gradient(90deg, var(--accent), #a8d0e6);
             color: white;
-            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+            box-shadow: 0 2px 12px rgba(184, 169, 212, 0.3);
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.6);
+            box-shadow: 0 4px 16px rgba(184, 169, 212, 0.4);
         }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text);
-            border: 1px solid var(--accent);
+            background: rgba(255, 255, 255, 0.9);
+            color: #8a7ba8;
+            border: 1px solid rgba(184, 169, 212, 0.3);
         }
 
         .btn-secondary:hover {
-            background: rgba(0, 212, 255, 0.2);
+            background: rgba(184, 169, 212, 0.1);
         }
 
         button:disabled {
@@ -240,11 +245,12 @@
         }
 
         .chart-section {
-            background: var(--primary);
-            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 20px;
             padding: 30px;
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(184, 169, 212, 0.15);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            backdrop-filter: blur(10px);
             display: none;
         }
 
@@ -263,8 +269,8 @@
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            background: radial-gradient(circle, #1a1a2e 0%, #0f0f1a 100%);
-            box-shadow: 0 0 40px rgba(0, 212, 255, 0.3), inset 0 0 40px rgba(0, 0, 0, 0.5);
+            background: radial-gradient(circle, #ffffff 0%, #f5f3f0 100%);
+            box-shadow: 0 4px 24px rgba(184, 169, 212, 0.2), inset 0 0 20px rgba(255, 255, 255, 0.8);
         }
 
         .results-section {
@@ -281,19 +287,22 @@
         }
 
         .result-card {
-            background: var(--primary);
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 16px;
             padding: 25px;
-            border: 1px solid rgba(0, 212, 255, 0.2);
+            border: 1px solid rgba(184, 169, 212, 0.15);
             border-left: 4px solid var(--accent);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+            backdrop-filter: blur(10px);
         }
 
         .result-card h3 {
-            color: var(--accent);
+            color: #8a7ba8;
             margin-bottom: 15px;
             font-size: 1.2em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            text-transform: none;
+            letter-spacing: 0.5px;
+            font-weight: 400;
         }
 
         .planet-row {
@@ -301,8 +310,8 @@
             grid-template-columns: auto 1fr auto auto;
             gap: 15px;
             padding: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
+            background: rgba(184, 169, 212, 0.08);
+            border-radius: 10px;
             margin-bottom: 10px;
             align-items: center;
         }
@@ -311,7 +320,7 @@
             font-size: 1.5em;
             width: 40px;
             text-align: center;
-            color: var(--accent-warm);
+            color: #d48ba8;
         }
 
         .planet-info {
@@ -319,7 +328,7 @@
         }
 
         .planet-name {
-            font-weight: 600;
+            font-weight: 500;
             color: var(--text);
         }
 
@@ -330,16 +339,16 @@
 
         .degree-value {
             text-align: right;
-            color: var(--accent);
-            font-weight: 600;
+            color: #8a7ba8;
+            font-weight: 500;
         }
 
         .aspect-item {
             padding: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
+            background: rgba(184, 169, 212, 0.08);
+            border-radius: 10px;
             margin-bottom: 10px;
-            border-left: 3px solid var(--accent-warm);
+            border-left: 3px solid #ffc5d9;
         }
 
         .aspect-header {
@@ -347,14 +356,14 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .aspect-type {
-            color: var(--accent);
-            text-transform: uppercase;
-            font-size: 0.8em;
-            letter-spacing: 1px;
+            color: #8a7ba8;
+            text-transform: none;
+            font-size: 0.85em;
+            letter-spacing: 0.3px;
         }
 
         .aspect-description {
@@ -364,9 +373,9 @@
         }
 
         .ascendant-display {
-            background: linear-gradient(90deg, rgba(0, 212, 255, 0.1), rgba(255, 107, 157, 0.1));
+            background: linear-gradient(90deg, rgba(184, 169, 212, 0.15), rgba(255, 197, 217, 0.15));
             padding: 20px;
-            border-radius: 8px;
+            border-radius: 12px;
             text-align: center;
             margin-bottom: 20px;
         }
@@ -375,14 +384,14 @@
             color: var(--text-muted);
             font-size: 0.9em;
             margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            text-transform: none;
+            letter-spacing: 0.5px;
         }
 
         .ascendant-value {
             font-size: 2em;
-            color: var(--accent);
-            font-weight: 700;
+            color: #8a7ba8;
+            font-weight: 400;
         }
 
         .table-section {
@@ -393,51 +402,52 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 10px;
             overflow: hidden;
         }
 
         thead {
-            background: rgba(0, 212, 255, 0.1);
+            background: rgba(184, 169, 212, 0.15);
         }
 
         th {
             padding: 15px 12px;
             text-align: left;
-            color: var(--accent);
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.85em;
-            letter-spacing: 1px;
-            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+            color: #8a7ba8;
+            font-weight: 500;
+            text-transform: none;
+            font-size: 0.9em;
+            letter-spacing: 0.3px;
+            border-bottom: 2px solid rgba(184, 169, 212, 0.2);
         }
 
         td {
             padding: 12px;
-            border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+            border-bottom: 1px solid rgba(184, 169, 212, 0.1);
+            color: var(--text);
         }
 
         tr:hover td {
-            background: rgba(0, 212, 255, 0.05);
+            background: rgba(184, 169, 212, 0.08);
         }
 
         .error-message {
-            background: rgba(255, 85, 85, 0.2);
+            background: rgba(255, 179, 186, 0.3);
             border-left: 4px solid var(--error);
-            color: #ff9999;
+            color: #d48ba8;
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 10px;
             margin-bottom: 20px;
             display: none;
         }
 
         .success-message {
-            background: rgba(68, 221, 119, 0.2);
+            background: rgba(168, 213, 186, 0.3);
             border-left: 4px solid var(--success);
-            color: #99ff99;
+            color: #6a9a7a;
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 10px;
             margin-bottom: 20px;
             display: none;
         }
@@ -499,15 +509,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+            box-shadow: 0 4px 15px rgba(184, 169, 212, 0.3);
             z-index: 1000;
             transition: all 0.3s ease;
             touch-action: manipulation;
+            color: white;
         }
 
         .settings-toggle:hover {
             transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.6);
+            box-shadow: 0 6px 20px rgba(184, 169, 212, 0.4);
         }
 
         .modal {
@@ -517,7 +528,8 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
             z-index: 999;
             align-items: center;
             justify-content: center;
@@ -528,15 +540,15 @@
         }
 
         .modal-content {
-            background: var(--primary);
-            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
             padding: 30px;
             max-width: 500px;
             width: calc(100% - 32px);
             max-height: calc(100vh - 48px);
             overflow: auto;
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(184, 169, 212, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
         }
 
         .modal-header {
@@ -544,13 +556,14 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-            border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+            border-bottom: 1px solid rgba(184, 169, 212, 0.15);
             padding-bottom: 15px;
         }
 
         .modal-header h2 {
-            color: var(--accent);
+            color: #8a7ba8;
             font-size: 1.5em;
+            font-weight: 400;
         }
 
         .close-btn {
@@ -576,8 +589,8 @@
             gap: 15px;
             margin-top: 20px;
             padding: 20px;
-            background: rgba(0, 212, 255, 0.05);
-            border-radius: 8px;
+            background: rgba(184, 169, 212, 0.1);
+            border-radius: 12px;
         }
 
         .legend-item {
@@ -729,9 +742,9 @@
             </div>
         </div>
 
-        <div class="table-section" id="tableSection" style="display: none; margin-top: 40px; padding: 20px; background: rgba(42, 42, 62, 0.3); border-radius: 12px;">
+        <div class="table-section" id="tableSection" style="display: none; margin-top: 40px; padding: 20px; background: rgba(255, 255, 255, 0.6); border-radius: 16px; border: 1px solid rgba(184, 169, 212, 0.15);">
             <details style="cursor: pointer;">
-                <summary style="color: var(--accent); font-size: 1.1em; font-weight: 600; margin-bottom: 15px; padding: 10px; background: rgba(0, 212, 255, 0.1); border-radius: 8px;">
+                <summary style="color: #8a7ba8; font-size: 1.1em; font-weight: 500; margin-bottom: 15px; padding: 10px; background: rgba(184, 169, 212, 0.15); border-radius: 10px;">
                     📊 Технические данные (для справки)
                 </summary>
                 <p style="color: var(--text-muted); font-size: 0.9em; margin: 15px 0;">Точные расчётные данные для тех, кто интересуется техническими деталями:</p>
@@ -1882,11 +1895,11 @@
             const radius = Math.min(centerX, centerY) * 0.9;
             
             // Фон
-            ctx.fillStyle = '#0a0a14';
+            ctx.fillStyle = '#faf9f7';
             ctx.fillRect(0, 0, cssSize, cssSize);
 
             // Внешний круг
-            ctx.strokeStyle = '#00d4ff';
+            ctx.strokeStyle = '#b8a9d4';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
@@ -1894,7 +1907,7 @@
 
             // Знаки зодиака
             ctx.font = 'bold 14px Arial';
-            ctx.fillStyle = '#00d4ff';
+            ctx.fillStyle = '#8a7ba8';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
@@ -1906,9 +1919,9 @@
             }
 
             // Дома
-            ctx.strokeStyle = '#00d4ff';
+            ctx.strokeStyle = '#b8a9d4';
             ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.3;
+            ctx.globalAlpha = 0.4;
 
             for (let i = 0; i < 12; i++) {
                 const angle = (chartData.houses[i] - 90) * Math.PI / 180;
@@ -1932,7 +1945,7 @@
                 const x = centerX + Math.cos(angle) * (radius * 0.6);
                 const y = centerY + Math.sin(angle) * (radius * 0.6);
                 
-                ctx.fillStyle = '#ff6b9d';
+                ctx.fillStyle = '#d48ba8';
                 ctx.fillText('●', x, y);
             });
 
@@ -1940,7 +1953,7 @@
             const ascAngle = (chartData.ascendant - 90) * Math.PI / 180;
             const ascX = centerX + Math.cos(ascAngle) * (radius * 0.8);
             const ascY = centerY + Math.sin(ascAngle) * (radius * 0.8);
-            ctx.fillStyle = '#00ff00';
+            ctx.fillStyle = '#a8d5ba';
             ctx.font = 'bold 20px Arial';
             ctx.fillText('Asc', ascX, ascY);
 
@@ -2367,29 +2380,29 @@
                     <div style="font-size: 1.5em; font-weight: 700; color: var(--accent); margin-bottom: 20px; text-align: center; text-shadow: 0 2px 10px rgba(0, 212, 255, 0.3);">
                         ${userName}, ваша уникальная личность
                     </div>
-                    <div style="color: var(--text); line-height: 1.9; margin-bottom: 15px; font-size: 1.05em; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent-warm);">
+                    <div style="color: var(--text); line-height: 1.9; margin-bottom: 15px; font-size: 1.05em; padding: 12px; background: rgba(255, 197, 217, 0.2); border-radius: 12px; border-left: 3px solid var(--accent-warm);">
                         ${greeting} ваша натальная карта раскрывает уникальные грани вашей личности и потенциала.
                     </div>
                     <div style="color: var(--text); line-height: 1.9; margin-bottom: 20px; font-size: 1.05em;">
-                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent);">
-                            <strong style="color: var(--accent);">Твой асцендент в ${ascendantSign}</strong> — это то, как тебя видят другие люди при первой встрече. ${getAscendantInterpretation(chartData.ascendantSign, gender, userName)}
+                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(184, 169, 212, 0.15); border-radius: 12px; border-left: 3px solid var(--accent);">
+                            <strong style="color: #8a7ba8;">Твой асцендент в ${ascendantSign}</strong> — это то, как тебя видят другие люди при первой встрече. ${getAscendantInterpretation(chartData.ascendantSign, gender, userName)}
                         </p>
-                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent-warm);">
-                            <strong style="color: var(--accent-warm);">Твоё Солнце в ${sunSign}</strong> — это твоя суть, твоё истинное «я», ${userName}. Это то, кем ты являешься в глубине души, твоя жизненная сила и цель. Ты пришёл в этот мир, чтобы ${getSunPurpose(chartData.planets.sun.sign, gender)}.
+                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(255, 197, 217, 0.15); border-radius: 12px; border-left: 3px solid var(--accent-warm);">
+                            <strong style="color: #d48ba8;">Твоё Солнце в ${sunSign}</strong> — это твоя суть, твоё истинное «я», ${userName}. Это то, кем ты являешься в глубине души, твоя жизненная сила и цель. Ты пришёл в этот мир, чтобы ${getSunPurpose(chartData.planets.sun.sign, gender)}.
                         </p>
-                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent);">
-                            <strong style="color: var(--accent);">Твоя Луна в ${moonSign}</strong> — это твои эмоции, потребности и внутренний мир, ${userName}. Это то, что тебя успокаивает и что тебе нужно для эмоционального комфорта. Эмоционально ты ${getMoonEmotion(chartData.planets.moon.sign, gender)}.
+                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(184, 169, 212, 0.15); border-radius: 12px; border-left: 3px solid var(--accent);">
+                            <strong style="color: #8a7ba8;">Твоя Луна в ${moonSign}</strong> — это твои эмоции, потребности и внутренний мир, ${userName}. Это то, что тебя успокаивает и что тебе нужно для эмоционального комфорта. Эмоционально ты ${getMoonEmotion(chartData.planets.moon.sign, gender)}.
                         </p>
-                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--success);">
-                            <strong style="color: var(--success);">Доминирующий элемент: ${dominantElement}</strong> — ${elementDescriptions[dominantElement]}
+                        <p style="margin-bottom: 15px; padding: 12px; background: rgba(168, 213, 186, 0.15); border-radius: 12px; border-left: 3px solid var(--success);">
+                            <strong style="color: #6a9a7a;">Доминирующий элемент: ${dominantElement}</strong> — ${elementDescriptions[dominantElement]}
                         </p>
                     </div>
-                    <div style="padding: 18px; background: rgba(0, 0, 0, 0.3); border-radius: 10px; margin-top: 20px; border: 1px solid rgba(0, 212, 255, 0.2);">
+                    <div style="padding: 18px; background: rgba(184, 169, 212, 0.1); border-radius: 12px; margin-top: 20px; border: 1px solid rgba(184, 169, 212, 0.2);">
                         <div style="color: var(--text); font-size: 0.95em; line-height: 1.7;">
-                            <strong style="color: var(--accent);">💡 О твоей карте:</strong> У тебя ${harmoniousAspects} гармоничных и ${tenseAspects} напряжённых аспектов. ${tenseAspects > harmoniousAspects ? 'Напряжённые аспекты — это твои зоны роста, где ты учишься преодолевать вызовы и становиться сильнее.' : 'Гармоничные аспекты помогают тебе легко находить баланс и использовать свои таланты.'}
+                            <strong style="color: #8a7ba8;">💡 О твоей карте:</strong> У тебя ${harmoniousAspects} гармоничных и ${tenseAspects} напряжённых аспектов. ${tenseAspects > harmoniousAspects ? 'Напряжённые аспекты — это твои зоны роста, где ты учишься преодолевать вызовы и становиться сильнее.' : 'Гармоничные аспекты помогают тебе легко находить баланс и использовать свои таланты.'}
                         </div>
-                        <div style="color: var(--text-muted); font-size: 0.9em; line-height: 1.6; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0, 212, 255, 0.1);">
-                            <strong style="color: var(--accent);">✨ Помни:</strong> Натальная карта — это карта потенциалов, а не предопределённости. Ты всегда можешь развивать свои сильные стороны и работать над вызовами. Каждая планета в твоей карте — это инструмент, который ты можешь использовать для создания той жизни, которую хочешь.
+                        <div style="color: var(--text-muted); font-size: 0.9em; line-height: 1.6; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(184, 169, 212, 0.15);">
+                            <strong style="color: #8a7ba8;">✨ Помни:</strong> Натальная карта — это карта потенциалов, а не предопределённости. Ты всегда можешь развивать свои сильные стороны и работать над вызовами. Каждая планета в твоей карте — это инструмент, который ты можешь использовать для создания той жизни, которую хочешь.
                         </div>
                     </div>
                 </div>
@@ -2402,13 +2415,13 @@
                         📅 Твои жизненные этапы
                     </div>
                     <div style="color: var(--text); line-height: 1.9; margin-bottom: 20px; font-size: 1.05em;">
-                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 4px solid var(--accent-warm);">
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(255, 197, 217, 0.15); border-radius: 12px; border-left: 4px solid var(--accent-warm);">
                             ${getChildhoodInterpretation(chartData, gender, userName)}
                         </div>
-                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 4px solid var(--accent);">
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(184, 169, 212, 0.15); border-radius: 12px; border-left: 4px solid var(--accent);">
                             ${getYouthInterpretation(chartData, gender, userName)}
                         </div>
-                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 4px solid var(--success);">
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(168, 213, 186, 0.15); border-radius: 12px; border-left: 4px solid var(--success);">
                             ${getCurrentTimeInterpretation(chartData, gender, userName)}
                         </div>
                     </div>
@@ -2418,15 +2431,15 @@
             // Добавляем советы по проработке негативных аспектов
             if (tenseAspects > 0) {
                 personalityText += `
-                    <div style="margin-bottom: 20px; padding: 25px; background: linear-gradient(135deg, rgba(255, 107, 157, 0.2), rgba(0, 212, 255, 0.1)); border-radius: 15px; border: 1px solid rgba(255, 107, 157, 0.4); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);">
-                        <div style="font-size: 1.3em; font-weight: 700; color: var(--accent-warm); margin-bottom: 20px; text-align: center; text-shadow: 0 2px 10px rgba(255, 107, 157, 0.3);">
+                    <div style="margin-bottom: 20px; padding: 25px; background: linear-gradient(135deg, rgba(255, 197, 217, 0.25), rgba(184, 169, 212, 0.15)); border-radius: 16px; border: 1px solid rgba(255, 197, 217, 0.4); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);">
+                        <div style="font-size: 1.3em; font-weight: 400; color: #d48ba8; margin-bottom: 20px; text-align: center;">
                             🔧 Проработка вызовов и негативных моментов
                         </div>
                         <div style="color: var(--text); line-height: 1.9; margin-bottom: 20px; font-size: 1.05em;">
                             ${getGeneralNegativeAdvice(chartData, gender, userName)}
                         </div>
-                        <div style="margin-top: 25px; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 10px; border: 1px solid rgba(255, 107, 157, 0.2);">
-                            <div style="font-size: 1.1em; font-weight: 600; color: var(--accent-warm); margin-bottom: 15px;">
+                        <div style="margin-top: 25px; padding: 20px; background: rgba(255, 255, 255, 0.5); border-radius: 12px; border: 1px solid rgba(255, 197, 217, 0.3);">
+                            <div style="font-size: 1.1em; font-weight: 500; color: #d48ba8; margin-bottom: 15px;">
                                 💎 Детальные советы по каждому напряжённому аспекту:
                             </div>
                 `;
@@ -2436,8 +2449,8 @@
                     const planet1Name = PLANETS_RU[aspect.planet1];
                     const planet2Name = PLANETS_RU[aspect.planet2];
                     personalityText += `
-                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; border-left: 3px solid var(--accent-warm);">
-                            <div style="font-weight: 600; color: var(--accent-warm); margin-bottom: 10px;">
+                        <div style="margin-bottom: 20px; padding: 15px; background: rgba(255, 197, 217, 0.15); border-radius: 12px; border-left: 3px solid var(--accent-warm);">
+                            <div style="font-weight: 500; color: #d48ba8; margin-bottom: 10px;">
                                 ${aspect.name}: ${planet1Name} и ${planet2Name}
                             </div>
                             <div style="color: var(--text); line-height: 1.7; font-size: 0.95em;">
