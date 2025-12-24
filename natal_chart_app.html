@@ -871,9 +871,20 @@
             document.getElementById('birthCountry').value = country;
             document.getElementById('citySuggestions').style.display = 'none';
             
-            lastSelectedCoords = { lat, lng };
+            const latNum = Number(lat);
+            const lngNum = Number(lng);
+            if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+                lastSelectedCoords = null;
+                lastSelectedTimeZone = null;
+                lastSelectedUtcOffsetMinutes = null;
+                document.getElementById('timezoneInfo').innerHTML =
+                    `<strong>Не удалось определить координаты города.</strong> Попробуйте выбрать другой вариант из списка.`;
+                return;
+            }
+
+            lastSelectedCoords = { lat: latNum, lng: lngNum };
             try {
-                await getTimezone(lat, lng);
+                await getTimezone(latNum, lngNum);
             } catch (err) {
                 document.getElementById('timezoneInfo').innerHTML =
                     `<strong>Не удалось определить часовой пояс автоматически.</strong> Попробуйте выбрать другой вариант из списка.`;
@@ -948,12 +959,20 @@
                 };
                 currentChart = chartData;
                 
-                displayChart(chartData);
                 displayResults(chartData);
                 
                 document.getElementById('chartSection').classList.add('active');
                 document.getElementById('resultsSection').style.display = 'grid';
                 document.getElementById('tableSection').style.display = 'block';
+
+                // Важно: canvas корректно измеряется только когда блок видим.
+                requestAnimationFrame(() => {
+                    try {
+                        displayChart(chartData);
+                    } catch (err) {
+                        console.error('Ошибка отрисовки космограммы:', err);
+                    }
+                });
                 
                 showSuccess('Натальная карта рассчитана успешно!');
             } catch (error) {
@@ -1009,14 +1028,21 @@
             const parts = dtf.formatToParts(dateUtcInstant);
             const map = {};
             for (const p of parts) map[p.type] = p.value;
-            const asUtcMillis = Date.UTC(
-                parseInt(map.year, 10),
-                parseInt(map.month, 10) - 1,
-                parseInt(map.day, 10),
-                parseInt(map.hour, 10),
-                parseInt(map.minute, 10),
-                parseInt(map.second, 10)
-            );
+            let year = parseInt(map.year, 10);
+            let month = parseInt(map.month, 10) - 1;
+            let day = parseInt(map.day, 10);
+            let hour = parseInt(map.hour, 10);
+            const minute = parseInt(map.minute, 10);
+            const second = parseInt(map.second, 10);
+
+            // На некоторых платформах `Intl` может вернуть hour="24" для полуночи.
+            // Это соответствует 00:xx следующего дня.
+            if (hour === 24) {
+                hour = 0;
+                day += 1;
+            }
+
+            const asUtcMillis = Date.UTC(year, month, day, hour, minute, second);
             // offset = (zoned-as-utc) - (real-utc)
             return (asUtcMillis - dateUtcInstant.getTime()) / 60000;
         }
@@ -1191,7 +1217,13 @@
         }
 
         function buildPorphyryHouses(ascDeg, mcDeg) {
-            // Фолбэк: делим квадранты (ASC-MC-DSC-IC) на 3 равные дуги по эклиптике
+            // Фолбэк: система Порфирия (делим 4 квадранта на 3 равные дуги по эклиптике).
+            //
+            // Важно: на высоких широтах (и в целом в некоторых геометриях) долготы углов
+            // ASC/MC/DSC/IC могут идти по эклиптике не в "привычном" порядке.
+            // Наивное разбиение через normalize360() может дать многократный обход (winding>1)
+            // и дубли куспов. Поэтому выбираем направление (по возрастанию/убыванию долгот),
+            // которое даёт ровно один полный оборот (360°) по последовательности домов 1→4→7→10→1.
             const cusps = new Array(12);
             const asc = normalize360(ascDeg);
             const mc = normalize360(mcDeg);
@@ -1203,21 +1235,65 @@
             cusps[6] = desc; // 7
             cusps[9] = mc;   // 10
 
-            const spanMCtoAsc = normalize360(asc - mc);
-            cusps[10] = normalize360(mc + spanMCtoAsc / 3);       // 11
-            cusps[11] = normalize360(mc + 2 * spanMCtoAsc / 3);   // 12
+            // Пробуем "прямое" направление (возрастающие долготы) для цепочки 1→4→7→10.
+            let ascI = asc;
+            let icI = ic;
+            while (icI < ascI) icI += 360;
+            let descI = desc;
+            while (descI < icI) descI += 360;
+            let mcI = mc;
+            while (mcI < descI) mcI += 360;
+            const endI = ascI + 360;
+            const incValid = (mcI <= endI + 1e-9);
 
-            const spanAsctoIC = normalize360(ic - asc);
-            cusps[1] = normalize360(asc + spanAsctoIC / 3);       // 2
-            cusps[2] = normalize360(asc + 2 * spanAsctoIC / 3);   // 3
+            // И альтернативу (убывающие долготы) для той же цепочки 1→4→7→10.
+            let ascD = asc;
+            let icD = ic;
+            while (icD > ascD) icD -= 360;
+            let descD = desc;
+            while (descD > icD) descD -= 360;
+            let mcD = mc;
+            while (mcD > descD) mcD -= 360;
+            const endD = ascD - 360;
+            const decValid = (mcD >= endD - 1e-9);
 
-            const spanICtoDesc = normalize360(desc - ic);
-            cusps[4] = normalize360(ic + spanICtoDesc / 3);       // 5
-            cusps[5] = normalize360(ic + 2 * spanICtoDesc / 3);   // 6
+            const useInc = incValid || !decValid;
 
-            const spanDesctoMC = normalize360(mc - desc);
-            cusps[7] = normalize360(desc + spanDesctoMC / 3);     // 8
-            cusps[8] = normalize360(desc + 2 * spanDesctoMC / 3); // 9
+            if (useInc) {
+                // Возрастающее направление: ASC -> IC -> DSC -> MC -> ASC(+360)
+                const spanAsctoIC = icI - ascI;
+                cusps[1] = normalize360(ascI + spanAsctoIC / 3);       // 2
+                cusps[2] = normalize360(ascI + 2 * spanAsctoIC / 3);   // 3
+
+                const spanICtoDesc = descI - icI;
+                cusps[4] = normalize360(icI + spanICtoDesc / 3);       // 5
+                cusps[5] = normalize360(icI + 2 * spanICtoDesc / 3);   // 6
+
+                const spanDesctoMC = mcI - descI;
+                cusps[7] = normalize360(descI + spanDesctoMC / 3);     // 8
+                cusps[8] = normalize360(descI + 2 * spanDesctoMC / 3); // 9
+
+                const spanMCtoAsc = endI - mcI;
+                cusps[10] = normalize360(mcI + spanMCtoAsc / 3);       // 11
+                cusps[11] = normalize360(mcI + 2 * spanMCtoAsc / 3);   // 12
+            } else {
+                // Убывающее направление: ASC -> IC -> DSC -> MC -> ASC(-360)
+                const spanAsctoIC = ascD - icD;
+                cusps[1] = normalize360(ascD - spanAsctoIC / 3);       // 2
+                cusps[2] = normalize360(ascD - 2 * spanAsctoIC / 3);   // 3
+
+                const spanICtoDesc = icD - descD;
+                cusps[4] = normalize360(icD - spanICtoDesc / 3);       // 5
+                cusps[5] = normalize360(icD - 2 * spanICtoDesc / 3);   // 6
+
+                const spanDesctoMC = descD - mcD;
+                cusps[7] = normalize360(descD - spanDesctoMC / 3);     // 8
+                cusps[8] = normalize360(descD - 2 * spanDesctoMC / 3); // 9
+
+                const spanMCtoAsc = mcD - endD;
+                cusps[10] = normalize360(mcD - spanMCtoAsc / 3);       // 11
+                cusps[11] = normalize360(mcD - 2 * spanMCtoAsc / 3);   // 12
+            }
 
             return cusps;
         }
@@ -1234,14 +1310,35 @@
             }
         }
 
-        function getHouseIndex(planetLon, houseCusps) {
-            // houseCusps: 12 углов (1..12) в градусах, порядок домов
+        function inferHouseDirection(houseCusps) {
+            // Возвращает +1 если куспы идут "вперёд" (по normalize360(end-start) суммарно ~360),
+            // иначе -1 (некоторые геометрии/фолбэк дают куспы в обратном направлении).
+            function sum(dir) {
+                let total = 0;
+                for (let i = 0; i < 12; i++) {
+                    const a = houseCusps[i];
+                    const b = houseCusps[(i + 1) % 12];
+                    let span = normalize360(dir > 0 ? (b - a) : (a - b));
+                    if (span === 0) span = 360;
+                    total += span;
+                }
+                return total;
+            }
+
+            const forward = sum(+1);
+            const backward = sum(-1);
+            return Math.abs(forward - 360) <= Math.abs(backward - 360) ? +1 : -1;
+        }
+
+        function getHouseIndex(planetLon, houseCusps, direction = +1) {
+            // houseCusps: 12 углов (1..12) в градусах
+            // direction: +1 => используем дугу end-start, -1 => start-end
             for (let i = 0; i < 12; i++) {
                 const start = houseCusps[i];
                 const end = houseCusps[(i + 1) % 12];
-                let span = normalize360(end - start);
+                let span = normalize360(direction > 0 ? (end - start) : (start - end));
                 if (span === 0) span = 360;
-                const d = normalize360(planetLon - start);
+                const d = normalize360(direction > 0 ? (planetLon - start) : (start - planetLon));
                 if (d < span) return i + 1;
             }
             return 1;
@@ -1269,6 +1366,7 @@
             // Дома: Плацидус, с фолбэком на Порфирий при неустойчивости
             const houseResult = buildHouses(lstDeg, latDeg, epsDeg, ascendant, mc);
             const houses = houseResult.cusps;
+            const houseDirection = inferHouseDirection(houses);
 
             const bodyMap = {
                 sun: Astronomy.Body.Sun,
@@ -1304,7 +1402,7 @@
                     degree: lon0 % 30,
                     latitude: ecl0.elat,
                     speed: speed,
-                    house: getHouseIndex(lon0, houses)
+                    house: getHouseIndex(lon0, houses, houseDirection)
                 };
             }
 
@@ -1315,6 +1413,7 @@
                 timeZone,
                 location: { lat: latDeg, lng: lonDeg },
                 houseSystem: houseResult.system,
+                houseDirection: houseDirection,
                 planets,
                 ascendant,
                 ascendantSign: Math.floor(ascendant / 30),
@@ -1408,17 +1507,25 @@
         function displayChart(chartData) {
             const canvas = document.getElementById('natalChart');
             const ctx = canvas.getContext('2d');
+
+            // Надёжное вычисление размеров (особенно после display:none -> block)
+            const rect = canvas.getBoundingClientRect();
+            const cssW = rect.width || canvas.offsetWidth || 0;
+            const cssH = rect.height || canvas.offsetHeight || 0;
+            const cssSize = Math.max(300, Math.floor(Math.min(cssW || 0, cssH || 0) || cssW || cssH || 600));
+            const dpr = window.devicePixelRatio || 1;
+
+            canvas.width = Math.round(cssSize * dpr);
+            canvas.height = Math.round(cssSize * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
+            const centerX = cssSize / 2;
+            const centerY = cssSize / 2;
             const radius = Math.min(centerX, centerY) * 0.9;
             
             // Фон
             ctx.fillStyle = '#0a0a14';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, cssSize, cssSize);
 
             // Внешний круг
             ctx.strokeStyle = '#00d4ff';
@@ -1639,16 +1746,31 @@
         }
 
         function shareChart() {
-            const text = currentChart ? 
-                `Натальная карта рассчитана: Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}` :
-                'Натальная карта';
-            
+            const url = window.location.href;
+            const text = currentChart
+                ? `Натальная карта рассчитана: Асцендент - ${ZODIAC_RU[currentChart.ascendantSign]}`
+                : 'Натальная карта';
+
+            // Web Share API (если доступен)
             if (navigator.share) {
-                navigator.share({ title: 'Натальная карта', text: text });
-            } else {
-                alert('Ссылка скопирована в буфер обмена:\n' + window.location.href);
-                navigator.clipboard.writeText(window.location.href);
+                navigator.share({ title: 'Натальная карта', text, url }).catch(() => {
+                    // если пользователь отменил — просто молча выходим
+                });
+                return;
             }
+
+            // Clipboard API работает только в secure context (https://) и часто не работает на file://
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showSuccess('Ссылка скопирована в буфер обмена');
+                }).catch(() => {
+                    window.prompt('Скопируйте ссылку:', url);
+                });
+                return;
+            }
+
+            // Надёжный фолбэк
+            window.prompt('Скопируйте ссылку:', url);
         }
 
         // Инициализация
