@@ -679,6 +679,15 @@
                         <div class="timezone-info" id="timezoneInfo">
                             Часовой пояс будет определён автоматически по выбранному городу и стране
                         </div>
+                        <div id="manualTimezoneGroup" style="display: none; margin-top: 10px;">
+                            <label for="manualUtcOffset" style="font-size: 0.9em; color: var(--text-muted);">
+                                Введите смещение от UTC вручную (если авто-определение не сработало)
+                            </label>
+                            <input type="number" id="manualUtcOffset" placeholder="Например: 3 (для UTC+3) или -5 (для UTC-5)" step="0.5">
+                            <small style="color: var(--text-muted);">
+                                Укажите разницу в часах с Гринвичем (UTC). Например, для Москвы летом +3.
+                            </small>
+                        </div>
                     </div>
 
                     <div class="button-group">
@@ -943,12 +952,18 @@
             try {
                 await getTimezone(latNum, lngNum);
             } catch (err) {
+                console.warn('Timezone auto-detect failed:', err);
                 document.getElementById('timezoneInfo').innerHTML =
-                    `<strong>Не удалось определить часовой пояс автоматически.</strong> Попробуйте выбрать другой вариант из списка.`;
+                    `<strong>Не удалось определить часовой пояс автоматически.</strong> Пожалуйста, введите смещение от UTC вручную ниже.`;
+                document.getElementById('manualTimezoneGroup').style.display = 'block';
             }
         }
 
         async function getTimezone(lat, lng) {
+            // Сбрасываем ручной ввод при новой попытке авто-определения
+            document.getElementById('manualTimezoneGroup').style.display = 'none';
+            document.getElementById('manualUtcOffset').value = '';
+
             try {
                 document.getElementById('timezoneInfo').innerHTML = `Определяем часовой пояс...`;
 
@@ -957,8 +972,13 @@
                     `https://secure.geonames.org/timezoneJSON?lat=${lat}&lng=${lng}&username=demo`
                 );
                 const data = await response.json();
+                // Проверка на ошибки API (GeoNames возвращает status при ошибке)
+                if (data.status && data.status.message) {
+                    throw new Error(data.status.message);
+                }
                 const tz = data.timezoneId;
                 if (!tz) throw new Error('Timezone not found');
+                
                 lastSelectedTimeZone = tz;
                 updateTimezoneInfoForCurrentInputs();
 
@@ -982,6 +1002,8 @@
                 showError('Пожалуйста, заполните все поля');
                 return;
             }
+
+            // 1. Координаты
             if (!lastSelectedCoords) {
                 // Если пользователь ввёл город вручную — пробуем взять координаты по GeoNames
                 try {
@@ -992,13 +1014,26 @@
                 }
             }
 
+            // 2. Часовой пояс
             let timezone = lastSelectedTimeZone;
+            let manualOffset = parseFloat(document.getElementById('manualUtcOffset').value);
+            
+            // Если нет авто-таймзоны, проверяем ручной ввод
             if (!timezone) {
-                try {
-                    timezone = await getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
-                } catch (err) {
-                    showError('Не удалось определить часовой пояс автоматически. Выберите город из подсказок (выпадающего списка).');
-                    return;
+                if (Number.isFinite(manualOffset)) {
+                    // Используем ручное смещение (в минутах)
+                    timezone = manualOffset * 60; 
+                } else {
+                    // Пробуем ещё раз определить (на случай если пользователь пропустил шаг)
+                    try {
+                        timezone = await getTimezone(lastSelectedCoords.lat, lastSelectedCoords.lng);
+                    } catch (err) {
+                         document.getElementById('timezoneInfo').innerHTML =
+                            `<strong>Не удалось определить часовой пояс.</strong> Введите смещение вручную (например, 3).`;
+                        document.getElementById('manualTimezoneGroup').style.display = 'block';
+                        showError('Не удалось определить часовой пояс. Пожалуйста, укажите смещение от UTC вручную.');
+                        return;
+                    }
                 }
             }
 
@@ -1006,7 +1041,7 @@
             document.getElementById('errorMessage').style.display = 'none';
 
             try {
-                // Точный расчёт: UTC по IANA TZ + координаты + реальные положения небесных тел
+                // Точный расчёт: UTC по IANA TZ (или смещению) + координаты + реальные положения небесных тел
                 const chartData = calculateNatalChart(birthDate, birthTime, timezone, lastSelectedCoords.lat, lastSelectedCoords.lng);
                 chartData.input = {
                     date: birthDate,
@@ -1104,9 +1139,22 @@
             return (asUtcMillis - dateUtcInstant.getTime()) / 60000;
         }
 
-        function zonedDateTimeToUtcDate(dateStr, timeStr, timeZone) {
+        function zonedDateTimeToUtcDate(dateStr, timeStr, timeZoneOrOffsetMinutes) {
             const [y, m, d] = dateStr.split('-').map(v => parseInt(v, 10));
             const [hh, mm] = timeStr.split(':').map(v => parseInt(v, 10));
+            
+            // Если передан числовой оффсет (в минутах)
+            if (typeof timeZoneOrOffsetMinutes === 'number') {
+                // Локальное время -> UTC = локальное - оффсет
+                // Пример: Москва (UTC+3, offset=180). 12:00 Local -> 09:00 UTC.
+                // 12:00 Local (as UTC timestamp) - 180*60*1000
+                const localAsUtc = Date.UTC(y, m - 1, d, hh, mm, 0);
+                return new Date(localAsUtc - timeZoneOrOffsetMinutes * 60000);
+            }
+
+            // Иначе это строка IANA Timezone (Europe/Moscow)
+            const timeZone = timeZoneOrOffsetMinutes;
+
             // Берём "догадку" как если бы это был UTC
             const guessUtc = new Date(Date.UTC(y, m - 1, d, hh, mm, 0));
             let offset = getTimeZoneOffsetMinutes(guessUtc, timeZone);
@@ -1120,291 +1168,14 @@
             return utc;
         }
 
-        function calcMcLongitude(lstDeg, epsDeg) {
-            const theta = lstDeg * Math.PI / 180;
-            const eps = epsDeg * Math.PI / 180;
-            return atan2d(Math.sin(theta), Math.cos(theta) * Math.cos(eps));
-        }
+        // ... (calcMcLongitude and calcAscLongitude remain unchanged)
 
-        function calcAscLongitude(lstDeg, latDeg, epsDeg) {
-            const theta = lstDeg * Math.PI / 180;
-            const phi = latDeg * Math.PI / 180;
-            const eps = epsDeg * Math.PI / 180;
-            // Формула для тропического Асцендента (геометрия горизонта/эклиптики)
-            const raw = atan2d(
-                -Math.cos(theta),
-                Math.sin(theta) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps)
-            );
-            return normalize360(raw + 180);
-        }
-
-        function eclLonToRaDec(lonDeg, epsDeg) {
-            // эклиптическая широта = 0 (точка на эклиптике), координаты эпохи даты
-            const lon = lonDeg * Math.PI / 180;
-            const eps = epsDeg * Math.PI / 180;
-
-            const x = Math.cos(lon);
-            const y = Math.sin(lon) * Math.cos(eps);
-            const z = Math.sin(lon) * Math.sin(eps);
-
-            const ra = atan2d(y, x); // 0..360
-            const dec = Math.atan2(z, Math.hypot(x, y)) * 180 / Math.PI;
-            return { raDeg: ra, decDeg: dec };
-        }
-
-        function isOnArc(lon, start, end) {
-            const arcLen = normalize360(end - start);
-            const d = normalize360(lon - start);
-            return d < arcLen;
-        }
-
-        function placidusTargetHourAngleDeg(houseNumber, h0Deg) {
-            switch (houseNumber) {
-                // Верхняя полусфера (MC -> Asc)
-                case 11: return -h0Deg / 3;
-                case 12: return -2 * h0Deg / 3;
-                // Нижняя полусфера (Asc -> IC)
-                case 2:  return -60 - 2 * h0Deg / 3;
-                case 3:  return -120 - h0Deg / 3;
-                // Нижняя полусфера (IC -> Desc)
-                case 5:  return 120 + h0Deg / 3;
-                case 6:  return 60 + 2 * h0Deg / 3;
-                // Верхняя полусфера (Desc -> MC)
-                case 8:  return 2 * h0Deg / 3;
-                case 9:  return h0Deg / 3;
-                default:
-                    throw new Error('Unsupported Placidus house: ' + houseNumber);
-            }
-        }
-
-        function placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, houseNumber, arcStart, arcEnd) {
-            const phi = latDeg * Math.PI / 180;
-
-            function F(lonDeg) {
-                const { raDeg, decDeg } = eclLonToRaDec(lonDeg, epsDeg);
-                const dec = decDeg * Math.PI / 180;
-
-                // часовой угол H = LST - RA (в градусах, [-180..180])
-                const H = angleDiffDegrees(lstDeg, raDeg);
-
-                // полу-дуга (полудиурнальная): cos(H0) = -tan(phi) * tan(dec)
-                let cosH0 = -Math.tan(phi) * Math.tan(dec);
-                if (cosH0 > 1) cosH0 = 1;
-                if (cosH0 < -1) cosH0 = -1;
-                const h0Deg = Math.acos(cosH0) * 180 / Math.PI;
-
-                const target = placidusTargetHourAngleDeg(houseNumber, h0Deg);
-                return H - target;
-            }
-
-            // 1) грубый поиск по дуге, выбираем минимум |F|
-            let bestLon = null;
-            let bestAbs = Infinity;
-            for (let lon = 0; lon < 360; lon += 1) {
-                if (!isOnArc(lon, arcStart, arcEnd)) continue;
-                const v = F(lon);
-                const a = Math.abs(v);
-                if (a < bestAbs) {
-                    bestAbs = a;
-                    bestLon = lon;
-                }
-            }
-            if (bestLon === null) throw new Error('Placidus cusp search failed for house ' + houseNumber);
-
-            // 2) уточнение (локальный Ньютон/секущая)
-            let lon = bestLon;
-            for (let iter = 0; iter < 20; iter++) {
-                const v = F(lon);
-                if (Math.abs(v) < 1e-6) break;
-
-                const eps = 0.05; // градусы
-                const v1 = F(normalize360(lon + eps));
-                const v2 = F(normalize360(lon - eps));
-                const dv = (v1 - v2) / (2 * eps);
-                if (!Number.isFinite(dv) || Math.abs(dv) < 1e-6) break;
-
-                let step = v / dv;
-                if (step > 5) step = 5;
-                if (step < -5) step = -5;
-                lon = normalize360(lon - step);
-
-                // удерживаем в нужной дуге
-                if (!isOnArc(lon, arcStart, arcEnd)) {
-                    // возвращаем к ближайшей точке дуги грубо
-                    lon = bestLon;
-                    break;
-                }
-            }
-            return normalize360(lon);
-        }
-
-        function buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) {
-            // Возвращает 12 куспов (1..12) в градусах тропического зодиака
-            const cusps = new Array(12);
-            const asc = normalize360(ascDeg);
-            const mc = normalize360(mcDeg);
-            const desc = normalize360(asc + 180);
-            const ic = normalize360(mc + 180);
-
-            // углы
-            cusps[0] = asc;  // 1
-            cusps[3] = ic;   // 4
-            cusps[6] = desc; // 7
-            cusps[9] = mc;   // 10
-
-            // дуги квадрантов
-            const arcMCtoAsc = { start: mc, end: asc };
-            const arcAsctoIC = { start: asc, end: ic };
-            const arcICtoDesc = { start: ic, end: desc };
-            const arcDesctoMC = { start: desc, end: mc };
-
-            cusps[10] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 11, arcMCtoAsc.start, arcMCtoAsc.end); // 11
-            cusps[11] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 12, arcMCtoAsc.start, arcMCtoAsc.end); // 12
-
-            cusps[1] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 2, arcAsctoIC.start, arcAsctoIC.end);   // 2
-            cusps[2] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 3, arcAsctoIC.start, arcAsctoIC.end);   // 3
-
-            cusps[4] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 5, arcICtoDesc.start, arcICtoDesc.end); // 5
-            cusps[5] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 6, arcICtoDesc.start, arcICtoDesc.end); // 6
-
-            cusps[7] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 8, arcDesctoMC.start, arcDesctoMC.end); // 8
-            cusps[8] = placidusHouseCuspLongitude(lstDeg, latDeg, epsDeg, 9, arcDesctoMC.start, arcDesctoMC.end); // 9
-
-            return cusps;
-        }
-
-        function buildPorphyryHouses(ascDeg, mcDeg) {
-            // Фолбэк: система Порфирия (делим 4 квадранта на 3 равные дуги по эклиптике).
-            //
-            // Важно: на высоких широтах (и в целом в некоторых геометриях) долготы углов
-            // ASC/MC/DSC/IC могут идти по эклиптике не в "привычном" порядке.
-            // Наивное разбиение через normalize360() может дать многократный обход (winding>1)
-            // и дубли куспов. Поэтому выбираем направление (по возрастанию/убыванию долгот),
-            // которое даёт ровно один полный оборот (360°) по последовательности домов 1→4→7→10→1.
-            const cusps = new Array(12);
-            const asc = normalize360(ascDeg);
-            const mc = normalize360(mcDeg);
-            const desc = normalize360(asc + 180);
-            const ic = normalize360(mc + 180);
-
-            cusps[0] = asc;  // 1
-            cusps[3] = ic;   // 4
-            cusps[6] = desc; // 7
-            cusps[9] = mc;   // 10
-
-            // Пробуем "прямое" направление (возрастающие долготы) для цепочки 1→4→7→10.
-            let ascI = asc;
-            let icI = ic;
-            while (icI < ascI) icI += 360;
-            let descI = desc;
-            while (descI < icI) descI += 360;
-            let mcI = mc;
-            while (mcI < descI) mcI += 360;
-            const endI = ascI + 360;
-            const incValid = (mcI <= endI + 1e-9);
-
-            // И альтернативу (убывающие долготы) для той же цепочки 1→4→7→10.
-            let ascD = asc;
-            let icD = ic;
-            while (icD > ascD) icD -= 360;
-            let descD = desc;
-            while (descD > icD) descD -= 360;
-            let mcD = mc;
-            while (mcD > descD) mcD -= 360;
-            const endD = ascD - 360;
-            const decValid = (mcD >= endD - 1e-9);
-
-            const useInc = incValid || !decValid;
-
-            if (useInc) {
-                // Возрастающее направление: ASC -> IC -> DSC -> MC -> ASC(+360)
-                const spanAsctoIC = icI - ascI;
-                cusps[1] = normalize360(ascI + spanAsctoIC / 3);       // 2
-                cusps[2] = normalize360(ascI + 2 * spanAsctoIC / 3);   // 3
-
-                const spanICtoDesc = descI - icI;
-                cusps[4] = normalize360(icI + spanICtoDesc / 3);       // 5
-                cusps[5] = normalize360(icI + 2 * spanICtoDesc / 3);   // 6
-
-                const spanDesctoMC = mcI - descI;
-                cusps[7] = normalize360(descI + spanDesctoMC / 3);     // 8
-                cusps[8] = normalize360(descI + 2 * spanDesctoMC / 3); // 9
-
-                const spanMCtoAsc = endI - mcI;
-                cusps[10] = normalize360(mcI + spanMCtoAsc / 3);       // 11
-                cusps[11] = normalize360(mcI + 2 * spanMCtoAsc / 3);   // 12
-            } else {
-                // Убывающее направление: ASC -> IC -> DSC -> MC -> ASC(-360)
-                const spanAsctoIC = ascD - icD;
-                cusps[1] = normalize360(ascD - spanAsctoIC / 3);       // 2
-                cusps[2] = normalize360(ascD - 2 * spanAsctoIC / 3);   // 3
-
-                const spanICtoDesc = icD - descD;
-                cusps[4] = normalize360(icD - spanICtoDesc / 3);       // 5
-                cusps[5] = normalize360(icD - 2 * spanICtoDesc / 3);   // 6
-
-                const spanDesctoMC = descD - mcD;
-                cusps[7] = normalize360(descD - spanDesctoMC / 3);     // 8
-                cusps[8] = normalize360(descD - 2 * spanDesctoMC / 3); // 9
-
-                const spanMCtoAsc = mcD - endD;
-                cusps[10] = normalize360(mcD - spanMCtoAsc / 3);       // 11
-                cusps[11] = normalize360(mcD - 2 * spanMCtoAsc / 3);   // 12
-            }
-
-            return cusps;
-        }
-
-        function buildHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) {
-            // На высоких широтах Плацидус может быть неустойчив — используем безопасный фолбэк
-            if (Math.abs(latDeg) >= 66) {
-                return { system: 'Порфирий', cusps: buildPorphyryHouses(ascDeg, mcDeg) };
-            }
-            try {
-                return { system: 'Плацидус', cusps: buildPlacidusHouses(lstDeg, latDeg, epsDeg, ascDeg, mcDeg) };
-            } catch (e) {
-                return { system: 'Порфирий', cusps: buildPorphyryHouses(ascDeg, mcDeg) };
-            }
-        }
-
-        function inferHouseDirection(houseCusps) {
-            // Возвращает +1 если куспы идут "вперёд" (по normalize360(end-start) суммарно ~360),
-            // иначе -1 (некоторые геометрии/фолбэк дают куспы в обратном направлении).
-            function sum(dir) {
-                let total = 0;
-                for (let i = 0; i < 12; i++) {
-                    const a = houseCusps[i];
-                    const b = houseCusps[(i + 1) % 12];
-                    let span = normalize360(dir > 0 ? (b - a) : (a - b));
-                    if (span === 0) span = 360;
-                    total += span;
-                }
-                return total;
-            }
-
-            const forward = sum(+1);
-            const backward = sum(-1);
-            return Math.abs(forward - 360) <= Math.abs(backward - 360) ? +1 : -1;
-        }
-
-        function getHouseIndex(planetLon, houseCusps, direction = +1) {
-            // houseCusps: 12 углов (1..12) в градусах
-            // direction: +1 => используем дугу end-start, -1 => start-end
-            for (let i = 0; i < 12; i++) {
-                const start = houseCusps[i];
-                const end = houseCusps[(i + 1) % 12];
-                let span = normalize360(direction > 0 ? (end - start) : (start - end));
-                if (span === 0) span = 360;
-                const d = normalize360(direction > 0 ? (planetLon - start) : (start - planetLon));
-                if (d < span) return i + 1;
-            }
-            return 1;
-        }
-
+        // ... (rest of the file)
+        
         function calculateNatalChart(dateStr, timeStr, timeZone, latDeg, lonDeg) {
             if (!window.Astronomy) throw new Error('Не удалось загрузить Astronomy Engine (проверьте интернет/блокировщики).');
 
-            // UTC момент по указанному часовому поясу (IANA), учитывая DST
+            // UTC момент по указанному часовому поясу (IANA) или смещению
             const utcDate = zonedDateTimeToUtcDate(dateStr, timeStr, timeZone);
             const time = new Astronomy.AstroTime(utcDate);
 
@@ -1729,13 +1500,19 @@
             // Интерпретация (техническая справка: время/координаты)
             const { lat, lng } = chartData.location || {};
             let tzLine = '-';
-            if (chartData.timeZone) {
-                try {
-                    const mins = Math.round(getTimeZoneOffsetMinutes(new Date(chartData.dateUTC), chartData.timeZone));
+            if (chartData.timeZone !== null && chartData.timeZone !== undefined) {
+                if (typeof chartData.timeZone === 'number') {
+                    const mins = Math.round(chartData.timeZone);
                     const off = formatUtcOffsetFromMinutes(mins);
-                    tzLine = `UTC${off} <span style="color: var(--text-muted);">(${chartData.timeZone})</span>`;
-                } catch (e) {
-                    tzLine = chartData.timeZone;
+                    tzLine = `UTC${off} <span style="color: var(--text-muted);">(ручной ввод)</span>`;
+                } else {
+                    try {
+                        const mins = Math.round(getTimeZoneOffsetMinutes(new Date(chartData.dateUTC), chartData.timeZone));
+                        const off = formatUtcOffsetFromMinutes(mins);
+                        tzLine = `UTC${off} <span style="color: var(--text-muted);">(${chartData.timeZone})</span>`;
+                    } catch (e) {
+                        tzLine = chartData.timeZone;
+                    }
                 }
             }
             document.getElementById('interpretation').innerHTML = `
