@@ -25,18 +25,54 @@
             --element-water: #4488ff;
             --success: #44dd77;
             --error: #ff5555;
+            --bg: linear-gradient(135deg, var(--secondary) 0%, #0f0f1a 100%);
+            --surface: rgba(42, 42, 62, 0.85);
+            --surface-2: rgba(42, 42, 62, 0.6);
+            --border: rgba(0, 212, 255, 0.22);
+            --border-strong: rgba(0, 212, 255, 0.35);
+            --shadow: 0 10px 35px rgba(0, 0, 0, 0.35);
+            --shadow-strong: 0 14px 48px rgba(0, 0, 0, 0.5);
+            --radius: 14px;
+            --radius-sm: 10px;
+            --focus-ring: 0 0 0 4px rgba(0, 212, 255, 0.25);
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--secondary) 0%, #0f0f1a 100%);
+            background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             overflow-x: hidden;
+            line-height: 1.45;
+            text-rendering: optimizeLegibility;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid var(--border-strong);
+            color: var(--text);
+            text-decoration: none;
+            transform: translateY(-200%);
+            transition: transform 0.2s ease;
+            z-index: 2000;
+        }
+
+        .skip-link:focus {
+            transform: translateY(0);
+        }
+
+        :focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -62,6 +98,35 @@
             font-size: 1.1em;
         }
 
+        .header-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .link-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(0, 212, 255, 0.18);
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .link-chip:hover {
+            transform: translateY(-1px);
+            background: rgba(0, 212, 255, 0.10);
+            border-color: rgba(0, 212, 255, 0.35);
+        }
+
         .main-layout {
             display: grid;
             grid-template-columns: 1fr 1.2fr;
@@ -70,11 +135,31 @@
         }
 
         .form-section {
-            background: var(--primary);
-            border-radius: 15px;
+            background: var(--surface);
+            border-radius: var(--radius);
             padding: 30px;
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .section-title {
+            color: var(--accent);
+            margin-bottom: 18px;
+            font-size: 1.25em;
+            letter-spacing: 0.2px;
+        }
+
+        fieldset {
+            border: none;
+            padding: 0;
+            margin: 0;
+            min-width: 0;
+        }
+
+        legend {
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 12px;
         }
 
         .form-group {
@@ -84,23 +169,36 @@
         label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 600;
+            font-weight: 700;
             color: var(--accent);
             font-size: 0.95em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            text-transform: none;
+            letter-spacing: 0.2px;
         }
 
         input, select {
             width: 100%;
             padding: 12px 15px;
             background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            border-radius: 8px;
+            border: 1px solid rgba(0, 212, 255, 0.28);
+            border-radius: var(--radius-sm);
             color: var(--text);
             font-size: 1em;
             transition: all 0.3s ease;
             font-family: inherit;
+        }
+
+        .hint {
+            color: var(--text-muted);
+            display: block;
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
         }
 
         /* Страна: делаем шрифт темнее (для нативного выпадающего списка) */
@@ -122,7 +220,8 @@
         #citySuggestions {
             background: rgba(15, 15, 26, 0.98);
             border: 1px solid rgba(0, 212, 255, 0.25);
-            border-radius: 8px;
+            border-radius: 10px;
+            outline: none;
         }
 
         .city-suggestion {
@@ -139,6 +238,10 @@
 
         .city-suggestion:hover {
             background: rgba(0, 212, 255, 0.08);
+        }
+
+        .city-suggestion[aria-selected="true"] {
+            background: rgba(0, 212, 255, 0.14);
         }
 
         .city-suggestion small {
@@ -267,6 +370,15 @@
             background: rgba(0, 212, 255, 0.2);
         }
 
+        .btn-primary:focus-visible,
+        .btn-secondary:focus-visible,
+        .timezone-btn:focus-visible,
+        .settings-toggle:focus-visible,
+        .close-btn:focus-visible,
+        a:focus-visible {
+            box-shadow: var(--focus-ring);
+        }
+
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -274,11 +386,11 @@
         }
 
         .chart-section {
-            background: var(--primary);
-            border-radius: 15px;
+            background: var(--surface);
+            border-radius: var(--radius);
             padding: 30px;
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
             display: none;
         }
 
@@ -315,7 +427,7 @@
         }
 
         .result-card {
-            background: var(--primary);
+            background: var(--surface-2);
             border-radius: 12px;
             padding: 25px;
             border: 1px solid rgba(0, 212, 255, 0.2);
@@ -557,6 +669,9 @@
             border-radius: 15px;
             padding: 30px;
             max-width: 500px;
+            width: calc(100% - 28px);
+            max-height: calc(100vh - 48px);
+            overflow: auto;
             border: 1px solid rgba(0, 212, 255, 0.3);
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
         }
@@ -624,6 +739,23 @@
             margin-top: 30px;
         }
 
+        @media (max-width: 640px) {
+            .container { padding: 16px; }
+            header { padding: 22px 12px; margin-bottom: 28px; }
+            header h1 { font-size: 1.7em; }
+            header p { font-size: 1em; }
+            .form-section, .chart-section { padding: 18px; }
+            .results-section { gap: 14px; margin-top: 24px; }
+            .result-card { padding: 18px; }
+            .field-row { grid-template-columns: 1fr; }
+            .button-group { flex-direction: column; }
+            button { width: 100%; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+        }
+
         @media print {
             body {
                 background: white;
@@ -639,36 +771,44 @@
     </style>
 </head>
 <body>
+    <a class="skip-link" href="#main">Перейти к форме</a>
     <div class="container">
         <header>
             <h1>🔮 Натальная Карта</h1>
             <p>Калькулятор космограммы с расшифровкой планет, домов и аспектов</p>
+            <div class="header-actions" aria-label="Навигация">
+                <a class="link-chip" href="index.html">← К проекту</a>
+                <a class="link-chip" href="#chartForm">К форме ↓</a>
+            </div>
         </header>
 
+        <main id="main" tabindex="-1">
         <div class="main-layout">
             <div class="form-section">
-                <h2 style="color: var(--accent); margin-bottom: 25px; font-size: 1.3em;">Введите данные рождения</h2>
+                <h2 class="section-title">Введите данные рождения</h2>
 
-                <div class="error-message" id="errorMessage"></div>
-                <div class="success-message" id="successMessage"></div>
+                <div class="error-message" id="errorMessage" role="alert" aria-live="assertive" tabindex="-1"></div>
+                <div class="success-message" id="successMessage" role="status" aria-live="polite"></div>
 
                 <form id="chartForm">
+                    <fieldset>
+                        <legend class="hint" style="margin-top: 0;">Поля с * обязательны. Для точных домов и асцендента важно корректное время и место.</legend>
                     <div class="form-group">
                         <label for="personName">Имя</label>
                         <input type="text" id="personName" placeholder="Например: Анна" required autocomplete="name">
                     </div>
 
-                    <div class="form-group">
-                        <label for="birthDate">Дата рождения</label>
-                        <input type="date" id="birthDate" required>
-                    </div>
+                    <div class="field-row">
+                        <div class="form-group">
+                            <label for="birthDate">Дата рождения</label>
+                            <input type="date" id="birthDate" required>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="birthTime">Время рождения (ЧЧ:ММ)</label>
-                        <input type="time" id="birthTime" value="12:00" required>
-                        <small style="color: var(--text-muted); display: block; margin-top: 8px;">
-                            Если время неизвестно, оставьте 12:00
-                        </small>
+                        <div class="form-group">
+                            <label for="birthTime">Время (ЧЧ:ММ)</label>
+                            <input type="time" id="birthTime" value="12:00" required>
+                            <small class="hint">Если время неизвестно, оставьте 12:00</small>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -691,8 +831,20 @@
 
                     <div class="form-group">
                         <label for="birthPlace">Место рождения (город)</label>
-                        <input type="text" id="birthPlace" placeholder="Например: Мытищи" required autocomplete="off">
-                        <div id="citySuggestions" style="max-height: 220px; overflow-y: auto; margin-top: 8px; display: none;"></div>
+                        <input
+                            type="text"
+                            id="birthPlace"
+                            placeholder="Например: Мытищи (или: 55.7558, 37.6173)"
+                            required
+                            autocomplete="off"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded="false"
+                            aria-controls="citySuggestions"
+                            aria-haspopup="listbox"
+                        >
+                        <small class="hint">Подсказки доступны с клавиатуры: ↑/↓, Enter — выбрать, Esc — закрыть.</small>
+                        <div id="citySuggestions" role="listbox" aria-label="Подсказки городов" style="max-height: 220px; overflow-y: auto; margin-top: 8px; display: none;"></div>
                     </div>
 
                     <div class="form-group">
@@ -716,6 +868,7 @@
                         <button type="submit" class="btn-primary" id="calculateBtn">Рассчитать карту</button>
                         <button type="reset" class="btn-secondary">Очистить</button>
                     </div>
+                    </fieldset>
                 </form>
 
                 <div class="loading" id="loading">
@@ -725,7 +878,7 @@
             </div>
 
             <div class="chart-section" id="chartSection">
-                <h2 id="cosmogramTitle" style="color: var(--accent); margin-bottom: 25px; font-size: 1.3em;">Космограмма</h2>
+                <h2 id="cosmogramTitle" class="section-title">Космограмма</h2>
                 <div class="chart-container">
                     <canvas id="natalChart" class="natal-chart-canvas"></canvas>
                 </div>
@@ -801,15 +954,16 @@
                 <span>Вода (Рак, Скорпион, Рыбы) - Эмоции, интуиция</span>
             </div>
         </div>
+        </main>
     </div>
 
-    <button class="settings-toggle" onclick="toggleModal()">⚙️</button>
+    <button class="settings-toggle" id="settingsToggle" type="button" aria-label="Сохранение и печать" aria-haspopup="dialog" aria-controls="settingsModal" disabled>⚙️</button>
 
     <div class="modal" id="settingsModal">
-        <div class="modal-content">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
             <div class="modal-header">
-                <h2>Сохранить карту</h2>
-                <button class="close-btn" onclick="toggleModal()">✕</button>
+                <h2 id="settingsTitle">Сохранить карту</h2>
+                <button class="close-btn" type="button" aria-label="Закрыть" onclick="toggleModal()">✕</button>
             </div>
             <div style="margin-top: 20px;">
                 <button class="btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="saveAsImage()">
@@ -894,6 +1048,9 @@
         let currentChart = null;
         let lastSelectedCoords = null;
         let lastSelectedPlaceMeta = null;
+        let cityCandidates = [];
+        let activeCityIndex = -1;
+        let lastFocusedElementBeforeModal = null;
         // GeoNames требует username. "demo" часто упирается в суточные лимиты, поэтому:
         // - если username не задан — используем фолбэк-геокодер без ключа (Open-Meteo)
         // - timezone определяем через TimeAPI (без ключа) либо из результата геокодинга
@@ -905,6 +1062,15 @@
         document.getElementById('birthPlace').addEventListener('input', (e) => {
             handleBirthPlaceTyping(e);
             debouncedCitySearch(e);
+        });
+        document.getElementById('birthPlace').addEventListener('keydown', handleCitySuggestionsKeydown);
+        document.addEventListener('click', (e) => {
+            const suggestions = document.getElementById('citySuggestions');
+            const input = document.getElementById('birthPlace');
+            if (!suggestions || !input) return;
+            if (suggestions.style.display !== 'block') return;
+            const isInside = suggestions.contains(e.target) || input.contains(e.target);
+            if (!isInside) hideCitySuggestions();
         });
         document.getElementById('birthCountry').addEventListener('change', () => {
             // При смене страны сбрасываем выбранные координаты, чтобы не было несоответствий.
@@ -924,6 +1090,16 @@
         });
         document.getElementById('timezoneManual').addEventListener('change', (e) => {
             setTimezoneManualMode(e.target.checked);
+        });
+
+        document.getElementById('settingsToggle').addEventListener('click', () => toggleModal());
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'settingsModal') closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('settingsModal')?.classList.contains('active')) {
+                closeModal();
+            }
         });
 
         // Важная защита корректности вводных:
@@ -1030,7 +1206,7 @@
         async function handleCitySearch(e) {
             const query = (e.target.value || '').trim();
             if (query.length < 2) {
-                document.getElementById('citySuggestions').style.display = 'none';
+                hideCitySuggestions();
                 return;
             }
 
@@ -1039,7 +1215,7 @@
                 // Форматы: "55.7558, 37.6173" или "55.7558 37.6173"
                 const coords = parseLatLngFromString(query);
                 if (coords) {
-                    document.getElementById('citySuggestions').style.display = 'none';
+                    hideCitySuggestions();
                     lastSelectedCoords = coords;
                     lastSelectedPlaceMeta = {
                         name: query,
@@ -1070,14 +1246,20 @@
             wrap.innerHTML = '';
 
             if (!Array.isArray(geonames) || geonames.length === 0) {
-                wrap.style.display = 'none';
+                hideCitySuggestions();
                 return;
             }
 
+            cityCandidates = geonames.slice(0, 12);
+            activeCityIndex = -1;
+
             const frag = document.createDocumentFragment();
-            geonames.forEach((city) => {
+            cityCandidates.forEach((city, idx) => {
                 const row = document.createElement('div');
                 row.className = 'city-suggestion';
+                row.id = `city-option-${idx}`;
+                row.setAttribute('role', 'option');
+                row.setAttribute('aria-selected', 'false');
                 row.innerHTML = `
                     <div><strong>${escapeHtml(city.name)}</strong></div>
                     <small>${escapeHtml(city.adminName1 || '')}${city.adminName1 ? ', ' : ''}${escapeHtml(city.countryName || city.countryCode || '')}</small>
@@ -1088,6 +1270,7 @@
 
             wrap.appendChild(frag);
             wrap.style.display = 'block';
+            document.getElementById('birthPlace')?.setAttribute('aria-expanded', 'true');
         }
 
         function selectCity(city) {
@@ -1098,7 +1281,7 @@
 
             document.getElementById('birthPlace').value = name;
             if (country) setSelectIfHasOption(document.getElementById('birthCountry'), country);
-            document.getElementById('citySuggestions').style.display = 'none';
+            hideCitySuggestions();
 
             lastSelectedCoords = { lat, lng };
             lastSelectedPlaceMeta = {
@@ -1319,6 +1502,7 @@
 
         async function handleSubmit(e) {
             e.preventDefault();
+            hideCitySuggestions();
 
             // Проверка загрузки внешних библиотек с повторной попыткой
             if (!window.luxon || !window.Astronomy) {
@@ -1374,8 +1558,7 @@
                 }
             }
 
-            document.getElementById('loading').classList.add('active');
-            document.getElementById('errorMessage').style.display = 'none';
+            setBusy(true);
 
             try {
                 const chartData = calculateNatalChart({
@@ -1399,10 +1582,13 @@
                 requestAnimationFrame(() => displayChart(chartData));
 
                 showSuccess('Натальная карта рассчитана успешно!');
+                document.getElementById('settingsToggle').disabled = false;
+                // Чуть помогаем flow: после расчёта прокручиваем к визуализации.
+                document.getElementById('chartSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } catch (error) {
                 showError('Ошибка при расчёте карты: ' + error.message);
             } finally {
-                document.getElementById('loading').classList.remove('active');
+                setBusy(false);
             }
         }
 
@@ -2295,10 +2481,26 @@
             };
         }
 
+        function setBusy(isBusy) {
+            const loading = document.getElementById('loading');
+            const btn = document.getElementById('calculateBtn');
+            const form = document.getElementById('chartForm');
+            const errorEl = document.getElementById('errorMessage');
+            if (errorEl) errorEl.style.display = 'none';
+            if (loading) loading.classList.toggle('active', !!isBusy);
+            if (btn) btn.disabled = !!isBusy;
+            if (form) form.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+        }
+
         function showError(message) {
             const el = document.getElementById('errorMessage');
             el.textContent = message;
             el.style.display = 'block';
+            // Уводим фокус в сообщение, чтобы пользователь сразу понял, что произошло.
+            requestAnimationFrame(() => {
+                try { el.focus(); } catch (_) {}
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
         }
 
         function showSuccess(message) {
@@ -2308,8 +2510,33 @@
             setTimeout(() => el.style.display = 'none', 3000);
         }
 
+        function openModal() {
+            const modal = document.getElementById('settingsModal');
+            if (!modal) return;
+            lastFocusedElementBeforeModal = document.activeElement;
+            modal.classList.add('active');
+            // Фокус в модалку: первый primary button.
+            requestAnimationFrame(() => {
+                const first = modal.querySelector('button.btn-primary');
+                if (first) first.focus();
+            });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('settingsModal');
+            if (!modal) return;
+            modal.classList.remove('active');
+            requestAnimationFrame(() => {
+                const el = lastFocusedElementBeforeModal;
+                if (el && typeof el.focus === 'function') el.focus();
+            });
+        }
+
         function toggleModal() {
-            document.getElementById('settingsModal').classList.toggle('active');
+            const modal = document.getElementById('settingsModal');
+            if (!modal) return;
+            if (modal.classList.contains('active')) closeModal();
+            else openModal();
         }
 
         function saveAsImage() {
@@ -2319,6 +2546,8 @@
             link.href = canvas.toDataURL('image/png');
             link.download = 'natalcharts_' + new Date().toISOString().slice(0, 10) + '.png';
             link.click();
+            showSuccess('Изображение сохранено.');
+            closeModal();
         }
 
         function printChart() {
@@ -2343,7 +2572,8 @@
         function copyToClipboard(text) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(() => {
-                    alert('Ссылка скопирована в буфер обмена:\n' + text);
+                    showSuccess('Ссылка скопирована в буфер обмена.');
+                    closeModal();
                 }).catch(() => {
                     // Fallback для старых браузеров
                     fallbackCopyToClipboard(text);
@@ -2364,11 +2594,69 @@
             textArea.select();
             try {
                 document.execCommand('copy');
-                alert('Ссылка скопирована в буфер обмена:\n' + text);
+                showSuccess('Ссылка скопирована в буфер обмена.');
+                closeModal();
             } catch (err) {
-                alert('Не удалось скопировать ссылку. Пожалуйста, скопируйте вручную:\n' + text);
+                showError('Не удалось скопировать ссылку. Пожалуйста, скопируйте вручную: ' + text);
             }
             document.body.removeChild(textArea);
+        }
+
+        function hideCitySuggestions() {
+            const wrap = document.getElementById('citySuggestions');
+            if (wrap) wrap.style.display = 'none';
+            const input = document.getElementById('birthPlace');
+            if (input) {
+                input.setAttribute('aria-expanded', 'false');
+                input.removeAttribute('aria-activedescendant');
+            }
+            cityCandidates = [];
+            activeCityIndex = -1;
+        }
+
+        function updateActiveCityOption(nextIndex) {
+            const wrap = document.getElementById('citySuggestions');
+            const input = document.getElementById('birthPlace');
+            if (!wrap || !input) return;
+            const options = Array.from(wrap.querySelectorAll('.city-suggestion[role="option"]'));
+            if (!options.length) return;
+
+            const clamped = Math.max(0, Math.min(nextIndex, options.length - 1));
+            options.forEach((opt, idx) => opt.setAttribute('aria-selected', idx === clamped ? 'true' : 'false'));
+            activeCityIndex = clamped;
+            input.setAttribute('aria-activedescendant', options[clamped].id);
+            options[clamped].scrollIntoView({ block: 'nearest' });
+        }
+
+        function handleCitySuggestionsKeydown(e) {
+            const wrap = document.getElementById('citySuggestions');
+            const isOpen = wrap && wrap.style.display === 'block';
+            if (!isOpen) return;
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                hideCitySuggestions();
+                return;
+            }
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                updateActiveCityOption(activeCityIndex + 1);
+                return;
+            }
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                updateActiveCityOption(activeCityIndex <= 0 ? 0 : activeCityIndex - 1);
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                if (activeCityIndex >= 0 && cityCandidates[activeCityIndex]) {
+                    e.preventDefault();
+                    selectCity(cityCandidates[activeCityIndex]);
+                }
+            }
         }
 
         // Инициализация

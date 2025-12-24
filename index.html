@@ -17,11 +17,37 @@
             color: #e0e0e0;
             min-height: 100vh;
             padding: 40px 20px;
+            line-height: 1.45;
+            text-rendering: optimizeLegibility;
         }
 
         .container {
             max-width: 1000px;
             margin: 0 auto;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(0, 212, 255, 0.35);
+            color: #e0e0e0;
+            text-decoration: none;
+            transform: translateY(-200%);
+            transition: transform 0.2s ease;
+            z-index: 2000;
+        }
+
+        .skip-link:focus {
+            transform: translateY(0);
+        }
+
+        :focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.25);
         }
 
         header {
@@ -130,6 +156,12 @@
             box-shadow: 0 5px 15px rgba(0, 212, 255, 0.4);
         }
 
+        .btn:focus-visible,
+        a:focus-visible,
+        button:focus-visible {
+            box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.25);
+        }
+
         .btn-secondary {
             background: rgba(255, 107, 157, 0.2);
             color: #ff6b9d;
@@ -200,9 +232,21 @@
             border-radius: 4px;
             color: #ffcc44;
         }
+
+        @media (max-width: 640px) {
+            body { padding: 26px 14px; }
+            h1 { font-size: 2.1em; }
+            header { padding: 26px 14px; margin-bottom: 34px; }
+            .card { padding: 18px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+        }
     </style>
 </head>
 <body>
+    <a class="skip-link" href="#main">К содержимому</a>
     <div class="container">
         <header>
             <h1>🔮 Натальная Карта</h1>
@@ -227,6 +271,7 @@
             </div>
         </header>
 
+        <main id="main" tabindex="-1">
         <div class="content-grid">
             <div class="card">
                 <div class="card-icon">🚀</div>
@@ -270,6 +315,7 @@
                 <button class="btn" onclick="document.documentElement.scrollTop = 0">В начало ↑</button>
             </div>
         </div>
+        </main>
 
         <div class="features">
             <h3>✨ Основные возможности</h3>
