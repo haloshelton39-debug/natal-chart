@@ -207,7 +207,7 @@
             const gender = chartData.input?.gender || 'unknown';
 
             let out = '';
-            out += `\n<div style="margin-bottom:16px;padding:16px;background:linear-gradient(90deg, rgba(184,169,212,0.12), rgba(255,197,217,0.06));border-radius:12px;">\n  <div style="font-size:1.15em;font-weight:700;color:var(--accent-warm);">${userName}, ваша натальная карта — кратко</div>\n  <div style="margin-top:8px;color:var(--text);">Здесь вы найдёте основные темы личности, сферы активности и практические рекомендации для дальнейшей работы с картой.</div>\n</div>\n`;
+            out += `\n<div style="margin-bottom:16px;padding:16px;background:linear-gradient(90deg, rgba(184,169,212,0.12), rgba(255,197,217,0.06));border-radius:12px;">\n  <div style="font-size:1.15em;font-weight:700;color:var(--accent-warm);">${userName}, ваш краткий психологический профиль</div>\n  <div style="margin-top:8px;color:var(--text);">За 10–20 секунд вы увидите ключевые черты: как вы проявляетесь, что вас мотивирует и где находится ваш ресурс. Формулировки — ясные и практичные, без эзотерики.</div>\n</div>\n`;
 
             // Key indicators
             out += buildKeyIndicators(chartData);
