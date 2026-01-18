@@ -2238,11 +2238,11 @@
             
             let harmonyDescription = '';
             if (harmonyIndex >= 70) {
-                harmonyDescription = 'Твоя карта показывает высокую гармонию. Ты обладаешь природным балансом и легко находишь компромиссы. Твоя задача — использовать эту гармонию для помощи другим.';
+                harmonyDescription = 'Соотношение аспектов указывает на устойчивый внутренний баланс. Ты быстро находишь компромиссы и умеешь сглаживать конфликты. Сильная сторона — поддержка и настройка команд на общий результат.';
             } else if (harmonyIndex >= 50) {
-                harmonyDescription = 'Твоя карта сбалансирована. У тебя есть как гармоничные, так и напряжённые аспекты, что создаёт динамику роста. Ты умеешь находить баланс между разными силами.';
+                harmonyDescription = 'Баланс аспектов говорит о сочетании опоры и напряжения. У тебя есть и ресурсные зоны, и точки роста, поэтому ты развиваешься через практику и обратную связь.';
             } else {
-                harmonyDescription = 'Твоя карта показывает напряжение, которое является источником роста. Ты сталкиваешься с вызовами, которые помогают тебе развиваться. Твоя сила — в способности преодолевать трудности.';
+                harmonyDescription = 'Преобладание напряжённых аспектов даёт высокий драйв и необходимость вырабатывать стратегии саморегуляции. Твоя сильная сторона — устойчивость и умение двигаться вперёд в сложных условиях.';
             }
 
             let strengthDescription = '';
@@ -2257,7 +2257,7 @@
                     jupiter: 'Твоя удача и способность расширяться особенно сильны. Ты оптимистичен и видишь возможности там, где другие не видят.',
                     saturn: 'Твоя дисциплина и способность строить особенно сильны. Ты умеешь создавать долгосрочные структуры.',
                     uranus: 'Твоя оригинальность и способность к переменам особенно сильны. Ты не боишься идти своим путём.',
-                    neptune: 'Твоя интуиция и способность видеть невидимое особенно сильны. Ты чувствителен к духовным аспектам жизни.',
+                    neptune: 'Твоя образность и эмпатия особенно сильны. Ты тонко считываешь настроение людей и контекст.',
                     pluto: 'Твоя способность к трансформации особенно сильна. Ты не боишься глубины и перерождения.'
                 };
                 strengthDescription = planetMeanings[topPlanet.name] || `Планета ${PLANETS_RU[topPlanet.name]} особенно сильна в твоей карте.`;
@@ -2265,13 +2265,13 @@
 
             document.getElementById('strengthHarmony').innerHTML = `
                 <div style="margin-bottom: 20px; padding: 15px; background: rgba(68, 221, 119, 0.1); border-radius: 8px; border-left: 3px solid var(--success);">
-                    <div style="font-weight: 600; color: var(--success); margin-bottom: 10px; font-size: 1.1em;">Энергетический баланс</div>
+                    <div style="font-weight: 600; color: var(--success); margin-bottom: 10px; font-size: 1.1em;">Баланс проявлений</div>
                     <div style="color: var(--text); line-height: 1.6; margin-bottom: 10px;">${harmonyDescription}</div>
                     <div style="color: var(--text-muted); font-size: 0.9em;">Индекс гармонии: ${harmonyIndex.toFixed(0)}/100 (${harmonyText})</div>
                 </div>
                 ${strengthDescription ? `
                 <div style="margin-bottom: 20px; padding: 15px; background: rgba(0, 212, 255, 0.1); border-radius: 8px; border-left: 3px solid var(--accent);">
-                    <div style="font-weight: 600; color: var(--accent); margin-bottom: 10px; font-size: 1.1em;">Твоя особая сила</div>
+                    <div style="font-weight: 600; color: var(--accent); margin-bottom: 10px; font-size: 1.1em;">Ключевая сильная сторона</div>
                     <div style="color: var(--text); line-height: 1.6;">${strengthDescription}</div>
                 </div>
                 ` : ''}
@@ -2291,10 +2291,10 @@
             const dominantElement = Object.entries(elementCount).reduce((a, b) => elementCount[a[0]] > elementCount[b[0]] ? a : b)[0];
             
             const elementDescriptions = {
-                "Огонь": "Ты активен, энергичен и полон энтузиазма. Ты любишь действие и не боишься идти вперёд. Твоя задача — научиться терпению и планированию.",
-                "Земля": "Ты практичен, надёжен и ценишь стабильность. Ты умеешь строить долгосрочные планы и достигать целей. Твоя задача — не забывать о радости и спонтанности.",
-                "Воздух": "Ты интеллектуален, общителен и любознателен. Ты ценишь идеи и общение. Твоя задача — находить глубину за поверхностностью.",
-                "Вода": "Ты чувствителен, интуитивен и эмоционален. Ты понимаешь скрытые мотивы и чувства. Твоя задача — научиться защищать свои границы."
+                "Огонь": "Вы активны, энергичны и ориентированы на действие. Обычно вам помогает ритм, в котором есть движение и ясные цели, а балансом становится терпение и планирование.",
+                "Земля": "Вы практичны, надёжны и цените стабильность. Лучше всего работают долгие циклы и ощутимые результаты, а балансом становится больше спонтанности и отдыха.",
+                "Воздух": "Вы интеллектуальны, общительны и любознательны. Вам полезны идеи, диалоги и разнообразие, а балансом становится углубление и концентрация.",
+                "Вода": "Вы чувствительны, эмпатичны и эмоциональны. Вам важны доверие и безопасная среда, а балансом становится ясность границ и бережный режим."
             };
             
             // Гендерно-специфичные интерпретации асцендента
@@ -2356,10 +2356,10 @@
                             ? `${userName}, ты производишь впечатление оригинального, независимого и дружелюбного мужчины. Люди видят в тебе нестандартность и открытость.`
                             : `Ты производишь впечатление оригинального, независимого и дружелюбного человека. Люди видят в тебе нестандартность и открытость.`,
                     11: gender === 'female'
-                        ? `${userName}, ты производишь впечатление мечтательной, чувствительной и сострадательной женщины. Люди видят в тебе духовность и интуицию.`
+                        ? `${userName}, ты производишь впечатление мягкой, чувствительной и поддерживающей женщины. Люди считывают в тебе эмпатию и тонкую восприимчивость.`
                         : gender === 'male'
-                            ? `${userName}, ты производишь впечатление мечтательного, чувствительного и сострадательного мужчины. Люди видят в тебе духовность и интуицию.`
-                            : `Ты производишь впечатление мечтательного, чувствительного и сострадательного человека. Люди видят в тебе духовность и интуицию.`
+                            ? `${userName}, ты производишь впечатление мягкого, чувствительного и поддерживающего мужчины. Люди считывают в тебе эмпатию и тонкую восприимчивость.`
+                            : `Ты производишь впечатление мягкого, чувствительного и поддерживающего человека. Люди считывают в тебе эмпатию и тонкую восприимчивость.`
                 };
                 return interpretations[signIndex] || `${userName}, ты производишь уникальное впечатление.`;
             };
@@ -2378,20 +2378,20 @@
             let personalityText = `
                 <div style="margin-bottom: 20px; padding: 25px; background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(255, 107, 157, 0.15)); border-radius: 15px; border: 1px solid rgba(0, 212, 255, 0.3); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);">
                     <div style="font-size: 1.5em; font-weight: 700; color: var(--accent); margin-bottom: 20px; text-align: center; text-shadow: 0 2px 10px rgba(0, 212, 255, 0.3);">
-                        ${userName}, ваша уникальная личность
+                        ${userName}, ваш краткий психологический профиль
                     </div>
                     <div style="color: var(--text); line-height: 1.9; margin-bottom: 15px; font-size: 1.05em; padding: 12px; background: rgba(255, 197, 217, 0.2); border-radius: 12px; border-left: 3px solid var(--accent-warm);">
-                        ${greeting} ваша натальная карта раскрывает уникальные грани вашей личности и потенциала.
+                        ${greeting} ниже — лаконичный отчёт, который читается за 10–20 секунд: как вы проявляетесь снаружи, что вас мотивирует и где вы восстанавливаете ресурс.
                     </div>
                     <div style="color: var(--text); line-height: 1.9; margin-bottom: 20px; font-size: 1.05em;">
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(184, 169, 212, 0.15); border-radius: 12px; border-left: 3px solid var(--accent);">
-                            <strong style="color: #8a7ba8;">Твой асцендент в ${ascendantSign}</strong> — это то, как тебя видят другие люди при первой встрече. ${getAscendantInterpretation(chartData.ascendantSign, gender, userName)}
+                            <strong style="color: #8a7ba8;">Внешнее проявление (асцендент в ${ascendantSign})</strong> — первое впечатление, которое вы производите. ${getAscendantInterpretation(chartData.ascendantSign, gender, userName)}
                         </p>
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(255, 197, 217, 0.15); border-radius: 12px; border-left: 3px solid var(--accent-warm);">
-                            <strong style="color: #d48ba8;">Твоё Солнце в ${sunSign}</strong> — это твоя суть, твоё истинное «я», ${userName}. Это то, кем ты являешься в глубине души, твоя жизненная сила и цель. Ты пришёл в этот мир, чтобы ${getSunPurpose(chartData.planets.sun.sign, gender)}.
+                            <strong style="color: #d48ba8;">Ядро мотивации (Солнце в ${sunSign})</strong> — то, на что вы опираетесь при принятии решений. Ваша внутренняя мотивация — ${getSunPurpose(chartData.planets.sun.sign, gender)}.
                         </p>
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(184, 169, 212, 0.15); border-radius: 12px; border-left: 3px solid var(--accent);">
-                            <strong style="color: #8a7ba8;">Твоя Луна в ${moonSign}</strong> — это твои эмоции, потребности и внутренний мир, ${userName}. Это то, что тебя успокаивает и что тебе нужно для эмоционального комфорта. Эмоционально ты ${getMoonEmotion(chartData.planets.moon.sign, gender)}.
+                            <strong style="color: #8a7ba8;">Эмоциональный фон (Луна в ${moonSign})</strong> — потребности, которые помогают вам восстанавливаться и чувствовать безопасность. Обычно вы ${getMoonEmotion(chartData.planets.moon.sign, gender)}.
                         </p>
                         <p style="margin-bottom: 15px; padding: 12px; background: rgba(168, 213, 186, 0.15); border-radius: 12px; border-left: 3px solid var(--success);">
                             <strong style="color: #6a9a7a;">Доминирующий элемент: ${dominantElement}</strong> — ${elementDescriptions[dominantElement]}
@@ -2399,10 +2399,10 @@
                     </div>
                     <div style="padding: 18px; background: rgba(184, 169, 212, 0.1); border-radius: 12px; margin-top: 20px; border: 1px solid rgba(184, 169, 212, 0.2);">
                         <div style="color: var(--text); font-size: 0.95em; line-height: 1.7;">
-                            <strong style="color: #8a7ba8;">💡 О твоей карте:</strong> У тебя ${harmoniousAspects} гармоничных и ${tenseAspects} напряжённых аспектов. ${tenseAspects > harmoniousAspects ? 'Напряжённые аспекты — это твои зоны роста, где ты учишься преодолевать вызовы и становиться сильнее.' : 'Гармоничные аспекты помогают тебе легко находить баланс и использовать свои таланты.'}
+                            <strong style="color: #8a7ba8;">💡 Итог по структуре карты:</strong> Гармоничных аспектов — ${harmoniousAspects}, напряжённых — ${tenseAspects}. ${tenseAspects > harmoniousAspects ? 'Больше напряжения означает больше задач на саморегуляцию и развитие навыков устойчивости.' : 'Больше гармонии означает лёгкий доступ к ресурсам и быстрый старт сильных сторон.'}
                         </div>
                         <div style="color: var(--text-muted); font-size: 0.9em; line-height: 1.6; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(184, 169, 212, 0.15);">
-                            <strong style="color: #8a7ba8;">✨ Помни:</strong> Натальная карта — это карта потенциалов, а не предопределённости. Ты всегда можешь развивать свои сильные стороны и работать над вызовами. Каждая планета в твоей карте — это инструмент, который ты можешь использовать для создания той жизни, которую хочешь.
+                            <strong style="color: #8a7ba8;">✨ Важно:</strong> Этот отчёт — модель склонностей, а не приговор. Вы можете усиливать сильные стороны и осознанно работать с уязвимыми зонами.
                         </div>
                     </div>
                 </div>
